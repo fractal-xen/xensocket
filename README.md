@@ -1,5 +1,11 @@
 XenSocket (XVMSocket) - Prototype version for Xen 3.0.3
 
+XenSocket (XVMSocket) is joint work with Xiaolan Zhang, John Griffin, and Pankaj Rohatgi.
+
+Our Xen Summit 2007 presentation can be found here: http://www-archive.xenproject.org/files/xensummit_4/SuzanneMcIntosh_XenSummit_2007.pdf
+
+Our Middleware 2007 paper is available here: http://link.springer.com/chapter/10.1007%2F978-3-540-76778-7_10
+
 XenSocket provides a sockets-based interface for interdomain 
 communication in Xen. XenSocket uses shared memory for message passing
 rather than the well-utilized method of using Xen communication rings
