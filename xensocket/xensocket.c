@@ -77,89 +77,38 @@ int memcpy_fromiovecend(unsigned char *kdata, const struct iovec *iov,
 struct descriptor_page;
 struct xen_sock;
 
-static void
-initialize_descriptor_page (struct descriptor_page *d);
+static void initialize_descriptor_page (struct descriptor_page *d);
+static void initialize_xen_sock (struct xen_sock *x);
 
-static void
-initialize_xen_sock (struct xen_sock *x);
+static int xen_create (struct socket *sock, int protocol);
+static int xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len);
+static int xen_release (struct socket *sock);
+static int xen_shutdown (struct socket *sock, int how);
+static int xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags);
+static int xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct compat_msghdr *msg, size_t len);
+static int xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct compat_msghdr *msg, size_t size, int flags);
+static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
+static int xen_listen (struct socket *sock, int backlog);
 
-static int
-xen_create (struct socket *sock, int protocol);
-
-static int
-xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len);
-
-static int
-server_allocate_descriptor_page (struct xen_sock *x);
-
-static int
-server_allocate_event_channel (struct xen_sock *x);
-
-static int
-server_allocate_buffer_pages (struct xen_sock *x);
-
-static int
-xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags);
-
-static int
-client_map_descriptor_page (struct xen_sock *x);
-
-static int
-client_bind_event_channel (struct xen_sock *x);
-
-static int
-client_map_buffer_pages (struct xen_sock *x);
-
-static int
-xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct compat_msghdr *msg, size_t len);
-
-static inline int
-is_writeable (struct descriptor_page *d);
-
-static long
-send_data_wait (struct sock *sk, long timeo);
-
-static irqreturn_t
-client_interrupt (int irq, void *dev_id, struct pt_regs *regs);
-
-static int
-xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct compat_msghdr *msg, size_t size, int flags);
-
-static inline int
-is_readable (struct descriptor_page *d);
-
-static long
-receive_data_wait (struct sock *sk, long timeo);
-
-static irqreturn_t
-server_interrupt (int irq, void *dev_id, struct pt_regs *regs);
-
-static int
-local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, int len);
-
-static int
-xen_release (struct socket *sock);
-
-static int
-xen_shutdown (struct socket *sock, int how);
-
-static void
-server_unallocate_buffer_pages (struct xen_sock *x);
-
-static void
-server_unallocate_descriptor_page (struct xen_sock *x);
-
-static void
-client_unmap_buffer_pages (struct xen_sock *x);
-
-static void
-client_unmap_descriptor_page (struct xen_sock *x);
-
-static int __init
-xensocket_init (void);
-
-static void __exit
-xensocket_exit (void);
+static int server_allocate_descriptor_page (struct xen_sock *x);
+static int server_allocate_event_channel (struct xen_sock *x);
+static int server_allocate_buffer_pages (struct xen_sock *x);
+static int client_map_descriptor_page (struct xen_sock *x);
+static int client_bind_event_channel (struct xen_sock *x);
+static int client_map_buffer_pages (struct xen_sock *x);
+static inline int is_writeable (struct descriptor_page *d);
+static long send_data_wait (struct sock *sk, long timeo);
+static irqreturn_t client_interrupt (int irq, void *dev_id, struct pt_regs *regs);
+static inline int is_readable (struct descriptor_page *d);
+static long receive_data_wait (struct sock *sk, long timeo);
+static irqreturn_t server_interrupt (int irq, void *dev_id, struct pt_regs *regs);
+static int local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, int len);
+static void server_unallocate_buffer_pages (struct xen_sock *x);
+static void server_unallocate_descriptor_page (struct xen_sock *x);
+static void client_unmap_buffer_pages (struct xen_sock *x);
+static void client_unmap_descriptor_page (struct xen_sock *x);
+static int __init xensocket_init (void);
+static void __exit xensocket_exit (void);
 
 /************************************************************************
  * Data structures for internal recordkeeping and shared memory.
@@ -246,11 +195,11 @@ static const struct proto_ops xen_stream_ops = {
 	.bind           = xen_bind,
 	.connect        = xen_connect,
 	.socketpair     = sock_no_socketpair,
-	.accept         = sock_no_accept,
+	.accept         = xen_accept,
 	.getname        = sock_no_getname,
 	.poll           = sock_no_poll,
 	.ioctl          = sock_no_ioctl,
-	.listen         = sock_no_listen,
+	.listen         = xen_listen,
 	.shutdown       = xen_shutdown,
 	.getsockopt     = sock_no_getsockopt,
 	.setsockopt     = sock_no_setsockopt,
@@ -1236,6 +1185,14 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 	}
 }
 
+
+static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
+  return -EOPNOTSUPP;
+}
+
+static int xen_listen (struct socket *sock, int backlog) {
+  return -EOPNOTSUPP;
+}
 
 /************************************************************************
  * Functions to interface this module with the rest of the Linux streams
