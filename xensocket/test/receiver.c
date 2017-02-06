@@ -38,7 +38,7 @@ main (int argc, char **argv) {
   int             no_mismatch = 1;
   int             bytes_unreceived = 0;
 
-  if (argc > 3) {
+  if (argc > 3 || argc < 2) {
     printf("Usage: %s <peer-domid>\n", argv[0]);
     return -1;
   }
