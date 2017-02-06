@@ -111,7 +111,7 @@ static int
 client_map_buffer_pages (struct xen_sock *x);
 
 static int
-xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct user_msghdr *msg, size_t len);
+xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct compat_msghdr *msg, size_t len);
 
 static inline int
 is_writeable (struct descriptor_page *d);
@@ -123,7 +123,7 @@ static irqreturn_t
 client_interrupt (int irq, void *dev_id, struct pt_regs *regs);
 
 static int
-xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct user_msghdr *msg, size_t size, int flags);
+xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct compat_msghdr *msg, size_t size, int flags);
 
 static inline int
 is_readable (struct descriptor_page *d);
@@ -762,7 +762,7 @@ err:
  ************************************************************************/
 
 static int
-xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct user_msghdr *msg, size_t len) {
+xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct compat_msghdr *msg, size_t len) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
@@ -861,7 +861,7 @@ send_data_wait (struct sock *sk, long timeo) {
 	notify_remote_via_evtchn(x->evtchn_local_port);
 
 	for (;;) {
-		prepare_to_wait(sk->sk_sleep, &wait, TASK_INTERRUPTIBLE);
+		prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
 
 		if (is_writeable(d)
 				|| !skb_queue_empty(&sk->sk_receive_queue)
@@ -878,7 +878,7 @@ send_data_wait (struct sock *sk, long timeo) {
 
 	d->sender_is_blocking = 0;
 
-	finish_wait(sk->sk_sleep, &wait);
+	finish_wait(sk_sleep(sk), &wait);
 
 	TRACE_EXIT;
 	return timeo;
@@ -891,8 +891,8 @@ client_interrupt (int irq, void *dev_id, struct pt_regs *regs) {
 
 	TRACE_ENTRY;
 
-	if (sk->sk_sleep && waitqueue_active(sk->sk_sleep)) {
-		wake_up_interruptible(sk->sk_sleep);
+	if (sk_sleep(sk) && waitqueue_active(sk_sleep(sk))) {
+		wake_up_interruptible(sk_sleep(sk));
 	}
 
 	TRACE_EXIT;
@@ -905,7 +905,7 @@ client_interrupt (int irq, void *dev_id, struct pt_regs *regs) {
  ***********************************************************************/
 
 static int
-xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct user_msghdr *msg, size_t size, int flags) {
+xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct compat_msghdr *msg, size_t size, int flags) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
@@ -1012,7 +1012,7 @@ receive_data_wait (struct sock *sk, long timeo) {
 	TRACE_ENTRY;
 
 	for (;;) {
-		prepare_to_wait(sk->sk_sleep, &wait, TASK_INTERRUPTIBLE);
+		prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
 		if (is_readable(d)
 				|| (atomic_read(&d->sender_has_shutdown) != 0)
 				|| !skb_queue_empty(&sk->sk_receive_queue)
@@ -1026,7 +1026,7 @@ receive_data_wait (struct sock *sk, long timeo) {
 		timeo = schedule_timeout(timeo);
 	}
 
-	finish_wait(sk->sk_sleep, &wait);
+	finish_wait(sk_sleep(sk), &wait);
 
 	TRACE_EXIT;
 	return timeo;
@@ -1039,8 +1039,8 @@ server_interrupt (int irq, void *dev_id, struct pt_regs *regs) {
 
 	TRACE_ENTRY;
 
-	if (sk->sk_sleep && waitqueue_active(sk->sk_sleep)) {
-		wake_up_interruptible(sk->sk_sleep);
+	if (sk_sleep(sk) && waitqueue_active(sk_sleep(sk))) {
+		wake_up_interruptible(sk_sleep(sk));
 	}
 
 	TRACE_EXIT;
