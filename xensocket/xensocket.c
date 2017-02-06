@@ -16,12 +16,19 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/vmalloc.h>
 
+#include <net/compat.h>
 #include <net/sock.h>
 #include <net/tcp_states.h>
 
-#include <xen/driver_util.h>
-#include <xen/gnttab.h>
+//#include <xen/driver_util.h>
+//#include <xen/gnttab.h>
+#include <xen/events.h>
+#include <xen/grant_table.h>
+#include <xen/interface/event_channel.h>
+#include <xen/interface/grant_table.h>
+#include <xen/interface/xen.h>
 #include <xen/evtchn.h>
 
 #include "xensocket.h"
@@ -275,7 +282,7 @@ xen_create (struct socket *sock, int protocol) {
       goto out;
     }
 
-  sk = sk_alloc(PF_XEN, GFP_KERNEL, &xen_proto, 1);
+  sk = sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
   if (!sk) {
     rc = -ENOMEM;
     goto out;
@@ -382,7 +389,7 @@ err:
 
 static int
 server_allocate_event_channel (struct xen_sock *x) {
-  evtchn_op_t op;
+  struct evtchn_op op;
   int         rc;
 
   TRACE_ENTRY;
@@ -392,7 +399,7 @@ server_allocate_event_channel (struct xen_sock *x) {
   op.u.alloc_unbound.dom = DOMID_SELF;
   op.u.alloc_unbound.remote_dom = x->otherend_id;
 
-  if ((rc = HYPERVISOR_event_channel_op(&op)) != 0) {
+  if ((rc = HYPERVISOR_event_channel_op(&op, NULL)) != 0) {
     DPRINTK("Unable to allocate event channel\n");
     goto err;
   }
@@ -598,7 +605,7 @@ err:
 
 static int
 client_bind_event_channel (struct xen_sock *x) {
-  evtchn_op_t op;
+  struct evtchn_op op;
   int         rc;
 
   TRACE_ENTRY;
@@ -611,7 +618,7 @@ client_bind_event_channel (struct xen_sock *x) {
   op.u.bind_interdomain.remote_dom = x->otherend_id;
   op.u.bind_interdomain.remote_port = x->descriptor_addr->server_evtchn_port;
 
-  if ((rc = HYPERVISOR_event_channel_op(&op)) != 0) {
+  if ((rc = HYPERVISOR_event_channel_op(&op, NULL)) != 0) {
     DPRINTK("Unable to bind to server's event channel\n");
     goto err;
   }
