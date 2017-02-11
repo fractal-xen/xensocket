@@ -31,6 +31,8 @@
 #include <xen/interface/xen.h>
 #include <xen/evtchn.h>
 
+#include <arch/x86/include/asm/xen/page.h>
+
 #include "xensocket.h"
 
 #define DPRINTK( x, args... ) printk(KERN_CRIT "%s: line %d: " x, __FUNCTION__ , __LINE__ , ## args ); 
@@ -260,7 +262,7 @@ xen_create (struct net *net, struct socket *sock, int protocol, int kern) {
 			goto out;
 	}
 
-	sk = (sock*) sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
+	sk = (sock *) sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
 	if (!sk) {
 		rc = -ENOMEM;
 		goto out;
