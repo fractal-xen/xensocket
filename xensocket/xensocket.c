@@ -262,7 +262,7 @@ xen_create (struct net *net, struct socket *res_sock, int protocol, int kern) {
 			goto out;
 	}
 
-	sk = (struct sock *) sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
+	sk = sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
 	if (!sk) {
 		rc = -ENOMEM;
 		goto out;
