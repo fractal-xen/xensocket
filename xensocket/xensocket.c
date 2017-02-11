@@ -857,7 +857,7 @@ client_interrupt (int irq, void *dev_id, struct pt_regs *regs) {
  ***********************************************************************/
 
 static int
-xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *m, size_t size, int flags) {
+xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *msg, size_t size, int flags) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
