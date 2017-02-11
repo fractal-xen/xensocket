@@ -85,7 +85,7 @@ static int xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len);
 static int xen_release (struct socket *sock);
 static int xen_shutdown (struct socket *sock, int how);
 static int xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags);
-static int xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct compat_msghdr *msg, size_t len);
+static int xen_sendmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *m, size_t len);
 static int xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct compat_msghdr *msg, size_t size, int flags);
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
 static int xen_listen (struct socket *sock, int backlog);
@@ -711,7 +711,7 @@ err:
  ************************************************************************/
 
 static int
-xen_sendmsg (struct kiocb *kiocb, struct socket *sock, struct compat_msghdr *msg, size_t len) {
+xen_sendmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *m, size_t len) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
