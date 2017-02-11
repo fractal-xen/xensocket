@@ -31,7 +31,7 @@
 #include <xen/interface/xen.h>
 #include <xen/evtchn.h>
 
-#include <arch/x86/include/asm/xen/page.h>
+#include <asm/xen/page.h>
 
 #include "xensocket.h"
 
