@@ -714,7 +714,7 @@ err:
  ************************************************************************/
 
 static int
-xen_sendmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *m, size_t len) {
+xen_sendmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *msg, size_t len) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
