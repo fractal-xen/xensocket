@@ -244,18 +244,18 @@ xen_shutdown (struct socket *sock, int how) {
  ************************************************************************/
 
 static int
-xen_create (struct net *net, struct socket *sock, int protocol, int kern) {
+xen_create (struct net *net, struct socket *res_sock, int protocol, int kern) {
 	int    rc = 0;
 	struct sock *sk;
 	struct xen_sock *x;
 
 	TRACE_ENTRY;
 
-	sock->state = SS_UNCONNECTED;
+	res_sock->state = SS_UNCONNECTED;
 
-	switch (sock->type) {
+	switch (res_sock->type) {
 		case SOCK_STREAM:
-			sock->ops = &xen_stream_ops;
+			res_sock->ops = &xen_stream_ops;
 			break;
 		default:
 			rc = -ESOCKTNOSUPPORT;
@@ -268,7 +268,7 @@ xen_create (struct net *net, struct socket *sock, int protocol, int kern) {
 		goto out;
 	}
 
-	sock_init_data(sock, sk);
+	sock_init_data(res_sock, sk);
 	sk->sk_family   = PF_XEN;
 	sk->sk_protocol = protocol;
 	x = xen_sk(sk);
