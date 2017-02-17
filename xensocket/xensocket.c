@@ -87,8 +87,8 @@ static int xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len);
 static int xen_release (struct socket *sock);
 static int xen_shutdown (struct socket *sock, int how);
 static int xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags);
-static int xen_sendmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *m, size_t len);
-static int xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *m, size_t size, int flags);
+static int xen_sendmsg (struct socket *sock, struct compat_msghdr *m, size_t len);
+static int xen_recvmsg (struct socket *sock, struct compat_msghdr *m, size_t size, int flags);
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
 static int xen_listen (struct socket *sock, int backlog);
 
@@ -262,8 +262,8 @@ xen_create (struct net *net, struct socket *res_sock, int protocol, int kern) {
 			goto out;
 	}
 
-	// sk = sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
-  sk = sk_alloc(net, PF_XEN, GFP_KERNEL, &xen_proto);
+	sk = sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
+//  sk = sk_alloc(net, PF_XEN, GFP_KERNEL, &xen_proto);
 	if (!sk) {
 		rc = -ENOMEM;
 		goto out;
@@ -714,7 +714,7 @@ err:
  ************************************************************************/
 
 static int
-xen_sendmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *msg, size_t len) {
+xen_sendmsg (struct socket *sock, struct compat_msghdr *msg, size_t len) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
@@ -857,7 +857,7 @@ client_interrupt (int irq, void *dev_id, struct pt_regs *regs) {
  ***********************************************************************/
 
 static int
-xen_recvmsg (struct kiocb *iocb, struct socket *sock, struct msghdr *msg, size_t size, int flags) {
+xen_recvmsg (struct socket *sock, struct compat_msghdr *msg, size_t size, int flags) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
