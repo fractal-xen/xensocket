@@ -314,22 +314,8 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	x->is_server = 1;
 
 	x->otherend_id = sxeaddr->remote_domid;
-
-	if ((rc = server_allocate_descriptor_page(x)) != 0) {
-		goto err;
-	}
-
-	if ((rc = server_allocate_event_channel(x)) != 0) {
-		goto err;
-	}
-
-	if ((rc = server_allocate_buffer_pages(x)) != 0) {
-		goto err;
-	}
-
-	/* A successful function exit returns the grant table reference. */
-	TRACE_EXIT;
-	return x->descriptor_gref;
+  
+  return 0;
 
 err:
 	TRACE_ERROR;
@@ -1190,11 +1176,43 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 
 
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
-  return -EOPNOTSUPP;
+  int    rc = -EINVAL;
+	struct sock *sk = sock->sk;
+	struct xen_sock *x = xen_sk(sk);
+  
+  struct sock *sk_new = newsock->sk;
+  sk_new->sk_family   = PF_XEN;
+	sk_new->sk_protocol = protocol;
+  struct xen_sock *x_new = xen_sk(sk_new);
+
+	TRACE_ENTRY;
+  
+  initialize_xen_sock(x_new);
+  
+	if ((rc = server_allocate_descriptor_page(x_new)) != 0) {
+		goto err;
+	}
+
+	if ((rc = server_allocate_event_channel(x_new)) != 0) {
+		goto err;
+	}
+
+	if ((rc = server_allocate_buffer_pages(x_new)) != 0) {
+		goto err;
+	}
+
+	/* A successful function exit returns the grant table reference. */
+	TRACE_EXIT;
+	return x_new->descriptor_gref;
+
+err:
+	TRACE_ERROR;
+	return rc;
 }
 
 static int xen_listen (struct socket *sock, int backlog) {
-  return -EOPNOTSUPP;
+  //return -EOPNOTSUPP;
+  return 0;
 }
 
 /************************************************************************
