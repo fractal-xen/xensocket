@@ -260,16 +260,18 @@ xen_create (struct socket *sock, int protocol) {
 			goto out;
 	}
 
+	printk(KERN_CRIT "pfxen: sk_alloc");
 	sk = sk_alloc(PF_XEN, GFP_KERNEL, 0, &xen_proto, 1);
 	if (!sk) {
 		rc = -ENOMEM;
 		goto out;
 	}
-
+	printk(KERN_CRIT "pfxen: sock_init_data");
 	sock_init_data(sock, sk);
 	sk->sk_family   = PF_XEN;
 	sk->sk_protocol = protocol;
 	x = xen_sk(sk);
+	printk(KERN_CRIT "pfxen: initialize_xen_sock");
 	initialize_xen_sock(x);
 
 out:
@@ -367,22 +369,23 @@ err:
 
 static int
 server_allocate_event_channel (struct xen_sock *x) {
-	struct evtchn_op op;
+	struct evtchn_alloc_unbound op;
 	int         rc;
 
 	TRACE_ENTRY;
 
-	memset(&op, 0, sizeof(op));
-	op.cmd = EVTCHNOP_alloc_unbound;
-	op.u.alloc_unbound.dom = DOMID_SELF;
-	op.u.alloc_unbound.remote_dom = x->otherend_id;
+	op.dom = DOMID_SELF;
+	op.remote_dom = x->otherend_id;
+	
+	printk(KERN_CRIT "own id: " + op.dom);
+	printk(KERN_CRIT "other end id: " + op.remote_dom);
 
-	if ((rc = HYPERVISOR_event_channel_op(&op, NULL)) != 0) {
+	if ((rc = HYPERVISOR_event_channel_op(EVTCHNOP_alloc_unbound, &op)) != 0) {
 		DPRINTK("Unable to allocate event channel\n");
 		goto err;
 	}
 
-	x->evtchn_local_port = op.u.alloc_unbound.port;
+	x->evtchn_local_port = op.port;
 	x->descriptor_addr->server_evtchn_port = x->evtchn_local_port;
 
 	/* Next bind this end of the event channel to our local callback
@@ -505,18 +508,19 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	x->otherend_id = sxeaddr->remote_domid;
 	x->descriptor_gref = sxeaddr->shared_page_gref;
 
+	printk(KERN_CRIT "pfxen: mapping descriptor page...");
 	if ((rc = client_map_descriptor_page(x)) != 0) {
 		goto err;
 	}
-
+	printk(KERN_CRIT "pfxen: mapping event channel...");
 	if ((rc = client_bind_event_channel(x)) != 0) {
 		goto err_unmap_descriptor;
 	}
-
+	printk(KERN_CRIT "pfxen: mapping buffer pages...");
 	if ((rc = client_map_buffer_pages(x)) != 0) {
 		goto err_unmap_buffer;
 	}
-
+	
 	TRACE_EXIT;
 	return 0;
 
@@ -583,7 +587,7 @@ err:
 
 static int
 client_bind_event_channel (struct xen_sock *x) {
-	struct evtchn_op op;
+	struct evtchn_bind_interdomain op;
 	int         rc;
 
 	TRACE_ENTRY;
@@ -591,20 +595,21 @@ client_bind_event_channel (struct xen_sock *x) {
 	/* Start by binding this end of the event channel to the other
 	 * end of the event channel. */
 
-	memset(&op, 0, sizeof(op));
-	op.cmd = EVTCHNOP_bind_interdomain;
-	op.u.bind_interdomain.remote_dom = x->otherend_id;
-	op.u.bind_interdomain.remote_port = x->descriptor_addr->server_evtchn_port;
+	op.remote_dom = x->otherend_id;
+	op.remote_port = x->descriptor_addr->server_evtchn_port;
 
-	if ((rc = HYPERVISOR_event_channel_op(&op, NULL)) != 0) {
+	printk("pfxen: remote dom: " + op.remote_dom);
+	printk("pfxen: remote_port: " + op.remote_port);
+
+	if ((rc = HYPERVISOR_event_channel_op(EVTCHNOP_bind_interdomain, &op)) != 0) {
 		DPRINTK("Unable to bind to server's event channel\n");
 		goto err;
 	}
 
-	x->evtchn_local_port = op.u.bind_interdomain.local_port;
+	x->evtchn_local_port = op.local_port;
 
 	DPRINTK("Other port is %d\n", x->descriptor_addr->server_evtchn_port);
-	DPRINTK("My port is %d\n", op.u.bind_interdomain.local_port);
+	DPRINTK("My port is %d\n", x->evtchn_local_port);
 
 	/* Next bind this end of the event channel to our local callback
 	 * function. */
@@ -1206,12 +1211,15 @@ xensocket_init (void) {
 	TRACE_ENTRY;
 
 	rc = proto_register(&xen_proto, 1);
+	printk(KERN_CRIT  "pfxen: protocol registered\n");
 	if (rc != 0) {
 		printk(KERN_CRIT "%s: Cannot create xen_sock SLAB cache!\n", __FUNCTION__);
 		goto out;
 	}
 
+	printk(KERN_CRIT "pfxen: registering socket family...\n");
 	sock_register(&xen_family_ops);
+	printk(KERN_CRIT "pfxen: xen socket family registered\n");
 
 out:
 	TRACE_EXIT;
