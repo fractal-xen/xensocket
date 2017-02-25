@@ -1,4 +1,7 @@
 xensocket.o
 xensocket.ko
 xensocket.mod.o
+xensocket.o.cmd
+xensocket.ko.cmd
+xensocket.mod.o.cmd
 
