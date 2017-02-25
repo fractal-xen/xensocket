@@ -1,3 +1,4 @@
 xensocket.o
 xensocket.ko
+xensocket.mod.o
 
