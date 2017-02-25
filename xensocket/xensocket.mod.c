@@ -31,6 +31,7 @@ __attribute__((section("__versions"))) = {
 	{ 0x6e96238e, __VMLINUX_SYMBOL_STR(sock_register) },
 	{ 0xb5c65e33, __VMLINUX_SYMBOL_STR(proto_register) },
 	{ 0x4f6b400b, __VMLINUX_SYMBOL_STR(_copy_from_user) },
+	{ 0x83349334, __VMLINUX_SYMBOL_STR(copy_from_iter) },
 	{ 0xba5a4e98, __VMLINUX_SYMBOL_STR(sk_free) },
 	{ 0xf08242c2, __VMLINUX_SYMBOL_STR(finish_wait) },
 	{ 0xd62c833f, __VMLINUX_SYMBOL_STR(schedule_timeout) },
@@ -71,4 +72,4 @@ __attribute__((section(".modinfo"))) =
 "depends=";
 
 
-MODULE_INFO(srcversion, "21C13063E6B39B14E639E57");
+MODULE_INFO(srcversion, "6976D570A1219001BAEF220");

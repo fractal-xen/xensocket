@@ -87,7 +87,7 @@ static int xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len);
 static int xen_release (struct socket *sock);
 static int xen_shutdown (struct socket *sock, int how);
 static int xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags);
-static int xen_sendmsg (struct socket *sock, struct compat_msghdr *m, size_t len);
+static int xen_sendmsg (struct socket *sock, struct msghdr *m, size_t len);
 static int xen_recvmsg (struct socket *sock, struct compat_msghdr *m, size_t size, int flags);
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
 static int xen_listen (struct socket *sock, int backlog);
@@ -720,7 +720,7 @@ err:
  ************************************************************************/
 
 static int
-xen_sendmsg (struct socket *sock, struct compat_msghdr *msg, size_t len) {
+xen_sendmsg (struct socket *sock, struct msghdr *msg, size_t len) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
@@ -761,6 +761,16 @@ xen_sendmsg (struct socket *sock, struct compat_msghdr *msg, size_t len) {
 			/* wrap around, need to copy twice */
 			unsigned int bytes_segment1 = max_offset - send_offset;
 			unsigned int bytes_segment2 = bytes - bytes_segment1;
+
+			if(copy_from_iter((unsigned char*)(x->buffer_addr + send_offset), bytes_segment1, &(msg->msg_iter)) == -EFAULT) {
+				DPRINTK("error: copy_from_user failed\n");
+				goto err;
+			}
+			if(copy_from_iter((unsigned char*)(x->buffer_addr), bytes_segment2, &(msg->msg_iter)) == -EFAULT) {
+				DPRINTK("error: copy_from_user failed\n");
+			}
+
+			/*
 			if (memcpy_fromiovecend((unsigned char *)(x->buffer_addr + send_offset), 
 						msg->msg_iov, copied, bytes_segment1) == -EFAULT) {
 				DPRINTK("error: copy_from_user failed\n");
@@ -771,14 +781,20 @@ xen_sendmsg (struct socket *sock, struct compat_msghdr *msg, size_t len) {
 				DPRINTK("error: copy_from_user failed\n");
 				goto err;
 			}
+			*/
 		} 
 		else {
-			/* no need to wrap around */
+			if(copy_from_iter((unsigned char *)(x->buffer_addr + send_offset), bytes, &(msg->msg_iter))) {
+				DPRINTK("error: copy_from_user failed\n");
+				goto err;
+			}
+			/* no need to wrap around
 			if (memcpy_fromiovecend((unsigned char *)(x->buffer_addr + send_offset), 
 						msg->msg_iov, copied, bytes) == -EFAULT) {
 				DPRINTK("error: copy_from_user failed\n");
 				goto err;
 			}
+			*/
 		}
 
 		/* Update values */
