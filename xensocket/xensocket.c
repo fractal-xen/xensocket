@@ -100,10 +100,10 @@ static int client_bind_event_channel (struct xen_sock *x);
 static int client_map_buffer_pages (struct xen_sock *x);
 static inline int is_writeable (struct descriptor_page *d);
 static long send_data_wait (struct sock *sk, long timeo);
-static irqreturn_t client_interrupt (int irq, void *dev_id, struct pt_regs *regs);
+static irqreturn_t client_interrupt (int irq, void *dev_id);
 static inline int is_readable (struct descriptor_page *d);
 static long receive_data_wait (struct sock *sk, long timeo);
-static irqreturn_t server_interrupt (int irq, void *dev_id, struct pt_regs *regs);
+static irqreturn_t server_interrupt (int irq, void *dev_id);
 static int local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, int len);
 static void server_unallocate_buffer_pages (struct xen_sock *x);
 static void server_unallocate_descriptor_page (struct xen_sock *x);
@@ -843,7 +843,7 @@ send_data_wait (struct sock *sk, long timeo) {
 }
 
 static irqreturn_t
-client_interrupt (int irq, void *dev_id, struct pt_regs *regs) {
+client_interrupt (int irq, void *dev_id) {
 	struct xen_sock *x = dev_id;
 	struct sock     *sk = &x->sk;
 
@@ -991,7 +991,7 @@ receive_data_wait (struct sock *sk, long timeo) {
 }
 
 static irqreturn_t
-server_interrupt (int irq, void *dev_id, struct pt_regs *regs) {
+server_interrupt (int irq, void *dev_id) {
 	struct xen_sock *x = dev_id;
 	struct sock     *sk = &x->sk;
 

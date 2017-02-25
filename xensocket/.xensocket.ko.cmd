@@ -1,0 +1,1 @@
+cmd_/home/philipp/XVMSocket/xensocket/xensocket.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/philipp/XVMSocket/xensocket/xensocket.ko /home/philipp/XVMSocket/xensocket/xensocket.o /home/philipp/XVMSocket/xensocket/xensocket.mod.o
