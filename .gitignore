@@ -1,0 +1,10 @@
+*.o
+*.ko
+*.o.cmd
+*.ko.cmd
+/xensocket/xensocket.mod.c
+modules.order
+Module.symvers
+.tmp_versions
+/xensocket/test/sender
+/xensocket/test/receiver
