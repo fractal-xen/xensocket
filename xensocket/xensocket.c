@@ -277,6 +277,7 @@ xen_create (struct net *net, struct socket *res_sock, int protocol, int kern) {
 	x = xen_sk(sk);
 	printk(KERN_CRIT "pfxen: initialize_xen_sock");
 	initialize_xen_sock(x);
+	printk(KERN_CRIT "pfxen: created socket");
 
 out:
 	TRACE_EXIT;
@@ -318,14 +319,15 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 
 	x->otherend_id = sxeaddr->remote_domid;
 
+	printk(KERN_CRIT "pfxen: allocating descriptor page...");
 	if ((rc = server_allocate_descriptor_page(x)) != 0) {
 		goto err;
 	}
-
+	printk(KERN_CRIT "pfxen: allocating event channel...");
 	if ((rc = server_allocate_event_channel(x)) != 0) {
 		goto err;
 	}
-
+	printk(KERN_CRIT "pfxen: allocating buffer pages...");
 	if ((rc = server_allocate_buffer_pages(x)) != 0) {
 		goto err;
 	}
@@ -728,12 +730,13 @@ xen_sendmsg (struct socket *sock, struct msghdr *msg, size_t len) {
 	unsigned int            max_offset = (1 << x->buffer_order) * PAGE_SIZE;
 	long                    timeo;
 	unsigned int            copied = 0;
+	unsigned int		not_copied = len;
 
 	TRACE_ENTRY;
 
 	timeo = sock_sndtimeo(sk, msg->msg_flags & MSG_DONTWAIT);
 
-	while (copied < len) {
+	while(not_copied > 0) {
 		unsigned int send_offset = d->send_offset;
 		unsigned int avail_bytes = atomic_read(&d->avail_bytes);
 		unsigned int bytes;
@@ -744,7 +747,7 @@ xen_sendmsg (struct socket *sock, struct msghdr *msg, size_t len) {
 		}
 
 		/* Determine the maximum amount that can be written */
-		bytes = len - copied;
+		bytes = not_copied;
 		bytes = min(bytes, avail_bytes);
 
 		/* Block if no space is available */
