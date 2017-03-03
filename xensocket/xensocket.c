@@ -573,7 +573,7 @@ client_map_descriptor_page (struct xen_sock *x) {
 		goto err_unmap;
 	}
 
-	if (op.status) {
+	if (op.status < 0) {
 		DPRINTK("error: grant table mapping operation failed\n");
 		goto err_unmap;
 	}
