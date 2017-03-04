@@ -25,7 +25,8 @@
      
 int
 main (int argc, char **argv) {
-  const long long tot_bytes_to_rx = 0x2000000;
+  //const long long tot_bytes_to_rx = 0x2000000;
+  const long long tot_bytes_to_rx = 0x2000;
   int             sock;
   struct          sockaddr_xe sxeaddr;
   int             rc = 0;
