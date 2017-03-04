@@ -765,11 +765,11 @@ xen_sendmsg (struct socket *sock, struct msghdr *msg, size_t len) {
 			unsigned int bytes_segment1 = max_offset - send_offset;
 			unsigned int bytes_segment2 = bytes - bytes_segment1;
 
-			if(copy_from_iter((unsigned char*)(x->buffer_addr + send_offset), bytes_segment1, &(msg->msg_iter)) == -EFAULT) {
+			if(copy_from_iter((unsigned char*)(x->buffer_addr + send_offset), bytes_segment1, &(msg->msg_iter)) != bytes_segment1) {
 				DPRINTK("error: copy_from_user failed\n");
 				goto err;
 			}
-			if(copy_from_iter((unsigned char*)(x->buffer_addr), bytes_segment2, &(msg->msg_iter)) == -EFAULT) {
+			if(copy_from_iter((unsigned char*)(x->buffer_addr), bytes_segment2, &(msg->msg_iter)) != bytes_segment2) {
 				DPRINTK("error: copy_from_user failed\n");
 			}
 
@@ -787,8 +787,9 @@ xen_sendmsg (struct socket *sock, struct msghdr *msg, size_t len) {
 			*/
 		} 
 		else {
-			if(copy_from_iter((unsigned char *)(x->buffer_addr + send_offset), bytes, &(msg->msg_iter))) {
-				DPRINTK("error: copy_from_user failed\n");
+            size_t res_bytes = copy_from_iter((unsigned char *)(x->buffer_addr + send_offset), bytes, &(msg->msg_iter));
+            if(res_bytes != bytes) {
+				DPRINTK("error: copy_from_user failed, res_bytes = %d\n", res_bytes);
 				goto err;
 			}
 			/* no need to wrap around
