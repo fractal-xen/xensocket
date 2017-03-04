@@ -52,10 +52,11 @@
  *      Copy iovec from kernel. Returns -EFAULT on error.
  */
 
+/*
 int memcpy_fromiovecend(unsigned char *kdata, const struct iovec *iov,
 		int offset, int len)
 {
-	/* Skip over the finished iovecs */
+	// Skip over the finished iovecs 
 	while (offset >= iov->iov_len) {
 		offset -= iov->iov_len;
 		iov++;
@@ -76,6 +77,8 @@ int memcpy_fromiovecend(unsigned char *kdata, const struct iovec *iov,
 	return 0;
 }
 
+*/
+
 struct descriptor_page;
 struct xen_sock;
 
@@ -88,7 +91,7 @@ static int xen_release (struct socket *sock);
 static int xen_shutdown (struct socket *sock, int how);
 static int xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags);
 static int xen_sendmsg (struct socket *sock, struct msghdr *m, size_t len);
-static int xen_recvmsg (struct socket *sock, struct compat_msghdr *m, size_t size, int flags);
+static int xen_recvmsg (struct socket *sock, struct msghdr *m, size_t size, int flags);
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
 static int xen_listen (struct socket *sock, int backlog);
 
@@ -883,7 +886,7 @@ client_interrupt (int irq, void *dev_id) {
  ***********************************************************************/
 
 static int
-xen_recvmsg (struct socket *sock, struct compat_msghdr *msg, size_t size, int flags) {
+xen_recvmsg (struct socket *sock, struct msghdr *msg, size_t size, int flags) {
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
@@ -933,12 +936,12 @@ xen_recvmsg (struct socket *sock, struct compat_msghdr *msg, size_t size, int fl
 			/* wrap around, need to perform the read twice */
 			unsigned int bytes_segment1 = max_offset - recv_offset;
 			unsigned int bytes_segment2 = bytes - bytes_segment1;
-			if (local_memcpy_toiovecend(msg->msg_iov, (unsigned char *)(x->buffer_addr + recv_offset), 
+			if (local_memcpy_toiovecend(msg->msg_iter.iov, (unsigned char *)(x->buffer_addr + recv_offset), 
 						copied, bytes_segment1) == -EFAULT) {
 				DPRINTK("error: copy_to_user failed\n");
 				goto err;
 			}
-			if (local_memcpy_toiovecend(msg->msg_iov, (unsigned char *)(x->buffer_addr), 
+			if (local_memcpy_toiovecend(msg->msg_iter.iov, (unsigned char *)(x->buffer_addr), 
 						copied + bytes_segment1, bytes_segment2) == -EFAULT) {
 				DPRINTK("error: copy_to_user failed\n");
 				goto err;
@@ -946,7 +949,7 @@ xen_recvmsg (struct socket *sock, struct compat_msghdr *msg, size_t size, int fl
 		} 
 		else {
 			/* no wrap around, proceed with one copy */
-			if (local_memcpy_toiovecend(msg->msg_iov, (unsigned char *)(x->buffer_addr + recv_offset), 
+			if (local_memcpy_toiovecend(msg->msg_iter.iov, (unsigned char *)(x->buffer_addr + recv_offset), 
 						copied, bytes) == -EFAULT) {
 				DPRINTK("error: copy_to_user failed\n");
 				goto err;
