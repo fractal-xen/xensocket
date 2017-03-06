@@ -37,7 +37,7 @@
 
 #define DPRINTK( x, args... ) printk(KERN_CRIT "%s: line %d: " x, __FUNCTION__ , __LINE__ , ## args ); 
 
-// #define DEBUG
+#define DEBUG
 #ifdef DEBUG
 #define TRACE_ENTRY printk(KERN_CRIT "Entering %s\n", __func__)
 #define TRACE_EXIT  printk(KERN_CRIT "Exiting %s\n", __func__)
