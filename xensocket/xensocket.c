@@ -47,38 +47,6 @@
 #endif
 #define TRACE_ERROR printk(KERN_CRIT "Exiting (ERROR) %s\n", __func__)
 
-// copied from 3.12 kernel source
-/*
- *      Copy iovec from kernel. Returns -EFAULT on error.
- */
-
-/*
-int memcpy_fromiovecend(unsigned char *kdata, const struct iovec *iov,
-		int offset, int len)
-{
-	// Skip over the finished iovecs 
-	while (offset >= iov->iov_len) {
-		offset -= iov->iov_len;
-		iov++;
-	}
-
-	while (len > 0) {
-		u8 __user *base = iov->iov_base + offset;
-		int copy = min_t(unsigned int, len, iov->iov_len - offset);
-
-		offset = 0;
-		if (copy_from_user(kdata, base, copy))
-			return -EFAULT;
-		len -= copy;
-		kdata += copy;
-		iov++;
-	}
-
-	return 0;
-}
-
-*/
-
 struct descriptor_page;
 struct xen_sock;
 
