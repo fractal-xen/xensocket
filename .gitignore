@@ -8,3 +8,5 @@ Module.symvers
 .tmp_versions
 /xensocket/test/sender
 /xensocket/test/receiver
+/xensocket/test2/sender
+/xensocket/test2/receiver
