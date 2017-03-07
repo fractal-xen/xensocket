@@ -34,13 +34,19 @@ int main(int argc, char **argv) {
   char input[4096];
 
   while(1) {
-    scanf("%s", input);   
-    printf("%s\n", input);
-    
+    int counter = 0;
+    char c;
+    while((c = getchar()) != '\n') {
+      input[counter] = c;
+      counter++;
+    }
+    input[counter] = '\0';
+
     int sent = 0;
     int len = strlen(input);
     while(sent < len) {
       sent = sent + send(sock, input + sent, len - sent, 0);
+      printf("Sent %d bytes\n", sent);
     }
   }
 }
