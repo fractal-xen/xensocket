@@ -33,9 +33,11 @@ int main(int argc, char **argv) {
 
   while(1) {
     char buffer[4096];
-    rc = recv(sock, buffer, 4096, 0);
-    if (rc <= 0)
+    rc = recv(sock, buffer, 4096, MSG_DONTWAIT);
+    if (rc <= 0) {
+      shutdown(sock, SHUT_RDWR);
       exit(0);
+    }
     else {
       buffer[rc] = '\0';
       printf("%s\n", buffer);
