@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-  gref = bind(sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr));
+  int gref = bind(sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr));
   printf("gref = %d\n", gref);
 
   while(1) {
