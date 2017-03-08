@@ -306,6 +306,7 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 
 	/* A successful function exit returns the grant table reference. */
 	TRACE_EXIT;
+	/*
 	// write gref to xenstore
 	struct xs_handle *xs;
 	xs_transaction_t th;
@@ -342,6 +343,16 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	close(fd);
 	xs_daemon_close(xs);
 	free(path);
+	*/
+
+	char dir[256];
+	memset(dir, 0, 256);
+	strcpy(dir, "/local/domain/");
+	sprintf(dir + 14, "%d", x->descriptor_gref);
+	struct xenbus_transaction *t;
+	xenbus_transaction_start(t);
+	xenbus_printf(*t, dir, "/gref", "%d", x->descriptor_gref);
+	xenbus_transaction_end(*t, 0);
 
 	return x->descriptor_gref;
 
