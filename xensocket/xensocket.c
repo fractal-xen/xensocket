@@ -36,9 +36,9 @@
 
 #include "xensocket.h"
 
-#define DPRINTK( x, args... ) printk(KERN_CRIT "%s: line %d: " x, __FUNCTION__ , __LINE__ , ## args ); 
+#define DPRINTK( x, args... ) printk(KERN_CRIT "%s: line %d: " x, __FUNCTION__ , (int)__LINE__ , ## args ); 
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 #define TRACE_ENTRY printk(KERN_CRIT "Entering %s\n", __func__)
 #define TRACE_EXIT  printk(KERN_CRIT "Exiting %s\n", __func__)
@@ -76,7 +76,7 @@ static irqreturn_t client_interrupt (int irq, void *dev_id);
 static inline int is_readable (struct descriptor_page *d);
 static long receive_data_wait (struct sock *sk, long timeo);
 static irqreturn_t server_interrupt (int irq, void *dev_id);
-static int local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, int len);
+static int local_memcpy_toiovecend (const struct iovec *iov, unsigned char *kdata, int offset, int len);
 static void server_unallocate_buffer_pages (struct xen_sock *x);
 static void server_unallocate_descriptor_page (struct xen_sock *x);
 static void client_unmap_buffer_pages (struct xen_sock *x);
@@ -392,8 +392,8 @@ server_allocate_event_channel (struct xen_sock *x) {
 	op.dom = DOMID_SELF;
 	op.remote_dom = x->otherend_id;
 	
-	printk(KERN_CRIT "own id: " + op.dom);
-	printk(KERN_CRIT "other end id: " + op.remote_dom);
+	printk(KERN_CRIT "own id: %d\n", op.dom);
+	printk(KERN_CRIT "other end id: %d\n", op.remote_dom);
 
 	if ((rc = HYPERVISOR_event_channel_op(EVTCHNOP_alloc_unbound, &op)) != 0) {
 		DPRINTK("Unable to allocate event channel\n");
@@ -613,8 +613,8 @@ client_bind_event_channel (struct xen_sock *x) {
 	op.remote_dom = x->otherend_id;
 	op.remote_port = x->descriptor_addr->server_evtchn_port;
 
-	printk("pfxen: remote dom: " + op.remote_dom);
-	printk("pfxen: remote_port: " + op.remote_port);
+	printk("pfxen: remote dom: %d\n ", op.remote_dom);
+	printk("pfxen: remote_port: %d\n", op.remote_port);
 
 	if ((rc = HYPERVISOR_event_channel_op(EVTCHNOP_bind_interdomain, &op)) != 0) {
 		DPRINTK("Unable to bind to server's event channel\n");
@@ -798,7 +798,7 @@ xen_sendmsg (struct socket *sock, struct msghdr *msg, size_t len) {
 		else {
             size_t res_bytes = copy_from_iter((unsigned char *)(x->buffer_addr + send_offset), bytes, &(msg->msg_iter));
             if(res_bytes != bytes) {
-				DPRINTK("error: copy_from_user failed, res_bytes = %d\n", res_bytes);
+				DPRINTK("error: copy_from_user failed, res_bytes = %d\n", (int)res_bytes);
 				goto err;
 			}
 			/* no need to wrap around
@@ -913,7 +913,7 @@ xen_recvmsg (struct socket *sock, struct msghdr *msg, size_t size, int flags) {
 		unsigned int avail_bytes = max_offset - atomic_read(&d->avail_bytes);  /* bytes available for read */
 
 		/* Determine the maximum amount that can be read */
-		bytes = min(size - copied, avail_bytes);
+		bytes = min((unsigned int)(size - copied), avail_bytes);
 
 		if (atomic_read(&d->sender_has_shutdown) != 0) {
 			if (avail_bytes == 0) {
@@ -1035,7 +1035,7 @@ server_interrupt (int irq, void *dev_id) {
 }
 
 static int
-local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, int len) {
+local_memcpy_toiovecend (const struct iovec *iov, unsigned char *kdata, int offset, int len) {
 	int err = -EFAULT; 
 
 	/* Skip over the finished iovecs */
@@ -1046,7 +1046,7 @@ local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, in
 
 	while (len > 0) {
 		u8 *base = iov->iov_base + offset;
-		int copy = min((unsigned int)len, iov->iov_len - offset);
+		int copy = min((unsigned int)len, (unsigned int)(iov->iov_len - offset));
 
 		offset = 0;
 		if (copy_to_user(base, kdata, copy)) {
