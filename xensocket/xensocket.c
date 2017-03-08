@@ -75,7 +75,7 @@ static irqreturn_t client_interrupt (int irq, void *dev_id);
 static inline int is_readable (struct descriptor_page *d);
 static long receive_data_wait (struct sock *sk, long timeo);
 static irqreturn_t server_interrupt (int irq, void *dev_id);
-static int local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, int len);
+static int local_memcpy_toiovecend (const struct iovec *iov, unsigned char *kdata, int offset, int len);
 static void server_unallocate_buffer_pages (struct xen_sock *x);
 static void server_unallocate_descriptor_page (struct xen_sock *x);
 static void client_unmap_buffer_pages (struct xen_sock *x);
@@ -997,7 +997,7 @@ server_interrupt (int irq, void *dev_id) {
 }
 
 static int
-local_memcpy_toiovecend (struct iovec *iov, unsigned char *kdata, int offset, int len) {
+local_memcpy_toiovecend (const struct iovec *iov, unsigned char *kdata, int offset, int len) {
 	int err = -EFAULT; 
 
 	/* Skip over the finished iovecs */
