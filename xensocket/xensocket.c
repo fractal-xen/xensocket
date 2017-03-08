@@ -30,6 +30,7 @@
 #include <xen/interface/grant_table.h>
 #include <xen/interface/xen.h>
 #include <xen/evtchn.h>
+#include <xen/xenbus.h>
 
 #include <asm/xen/page.h>
 
@@ -305,6 +306,43 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 
 	/* A successful function exit returns the grant table reference. */
 	TRACE_EXIT;
+	// write gref to xenstore
+	struct xs_handle *xs;
+	xs_transaction_t th;
+	char* path;
+	int fd;
+	fd_set set;
+	int er;
+	struct timeval tv = {.tv_sec = 0, .tv_usec = 0 };
+	char **vec;
+	unsigned int num_strings;
+	char* buf;
+	unsigned int len;
+
+	xs = xs_daemon_open();
+	if (xs == NULL)
+		return -1;
+	path = xs_get_domain_path(xs, x->otherend_id);
+	if (path == NULL)
+		return -2;
+	else
+		printk(KERN_CRIT "xenstore path: %s\n", path);
+	path = realloc(path, strlen(path) + strlen("/pfxen_gref") + 1);
+	if (path == NULL)
+		return -3;
+	strcat(path, "/pfxen_gref");
+	fd = xs_fileno(xs);
+
+	th = xs_transaction_start(xs);
+	er = xs_write(xs, th, path, "" + x->descriptor_gref, strlen("" + x->descriptor_gref));
+	xs_transaction_end(xs, th, false);
+	if (er == 0)
+		return -5;
+
+	close(fd);
+	xs_daemon_close(xs);
+	free(path);
+
 	return x->descriptor_gref;
 
 err:
