@@ -268,16 +268,18 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	int    rc = -EINVAL;
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
-	struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
+	//struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
 	char dir[256];
 	struct xenbus_transaction t;
 
 	TRACE_ENTRY;
 
+// TODO: store sxeaddr->service in socket
+/*
 	if (sxeaddr->sxe_family != AF_XEN) {
 		goto err;
 	}
-
+*/
 	/* Ensure that bind() is only called once for this socket.
 	 */
 
@@ -291,62 +293,6 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	}
 	x->is_server = 1;
 
-	x->otherend_id = sxeaddr->remote_domid;
-
-	printk(KERN_CRIT "pfxen: allocating descriptor page...");
-	if ((rc = server_allocate_descriptor_page(x)) != 0) {
-		goto err;
-	}
-	printk(KERN_CRIT "pfxen: allocating event channel...");
-	if ((rc = server_allocate_event_channel(x)) != 0) {
-		goto err;
-	}
-	printk(KERN_CRIT "pfxen: allocating buffer pages...");
-	if ((rc = server_allocate_buffer_pages(x)) != 0) {
-		goto err;
-	}
-
-	/* A successful function exit returns the grant table reference. */
-	TRACE_EXIT;
-	/*
-	// write gref to xenstore
-	struct xs_handle *xs;
-	xs_transaction_t th;
-	char* path;
-	int fd;
-	fd_set set;
-	int er;
-	struct timeval tv = {.tv_sec = 0, .tv_usec = 0 };
-	char **vec;
-	unsigned int num_strings;
-	char* buf;
-	unsigned int len;
-
-	xs = xs_daemon_open();
-	if (xs == NULL)
-		return -1;
-	path = xs_get_domain_path(xs, x->otherend_id);
-	if (path == NULL)
-		return -2;
-	else
-		printk(KERN_CRIT "xenstore path: %s\n", path);
-	path = realloc(path, strlen(path) + strlen("/pfxen_gref") + 1);
-	if (path == NULL)
-		return -3;
-	strcat(path, "/pfxen_gref");
-	fd = xs_fileno(xs);
-
-	th = xs_transaction_start(xs);
-	er = xs_write(xs, th, path, "" + x->descriptor_gref, strlen("" + x->descriptor_gref));
-	xs_transaction_end(xs, th, false);
-	if (er == 0)
-		return -5;
-
-	close(fd);
-	xs_daemon_close(xs);
-	free(path);
-*/
-
 	memset(dir, 0, 256);
 	strcpy(dir, "/xensocket/domain/");
 	sprintf(dir + 18, "%d", x->otherend_id);
@@ -356,6 +302,8 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	}
 	xenbus_printf(t, dir, "gref", "%d", x->descriptor_gref);
 	xenbus_transaction_end(t, 0);
+
+	TRACE_EXIT;
 
 	return x->descriptor_gref;
 
@@ -517,6 +465,9 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
 	char dir[256];
 	struct xenbus_transaction t;
+    char gref_str[15];
+    const char *domid;
+    int otherend_id;
 
 	TRACE_ENTRY;
 
@@ -539,9 +490,10 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 
 	xenbus_transaction_start(&t);
     // read remote domid from xenstore
-    if((rc = xenbus_scanf(t, "/xensocket/service", sxeaddr->service, "%d", &(x->otherend_id))) < 0) {
+    if((rc = xenbus_scanf(t, "/xensocket/service", sxeaddr->service, "%d", &otherend_id)) < 0) {
         goto err;
     }
+    x->otherend_id = otherend_id;
 
 	printk(KERN_CRIT "pfxen: allocating descriptor page...");
 	if ((rc = server_allocate_descriptor_page(x)) != 0) {
@@ -557,7 +509,6 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	}
 
     sprintf(dir, "/xensocket/service/%s", sxeaddr->service);
-    char gref_str[15];
     sprintf(gref_str, "%d", x->descriptor_gref);
     if(xenbus_exists(t, dir, gref_str)) {
         // already exists
@@ -565,7 +516,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
         goto err;
     }
     // write own domid to xenstore
-    const char *domid = xenbus_read(t, "", "domid", NULL);
+    domid = xenbus_read(t, "", "domid", NULL);
     if((rc = xenbus_write(t, dir, gref_str, domid)) < 0) {
         goto err;
     }
@@ -1258,11 +1209,15 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	int    rc = -EINVAL;
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
-    struct sock *new_sk = newsock->sk;
-    struct xen_sock *new_x = xen_sk(new_sk);
+    //struct sock *new_sk = newsock->sk;
+    //struct xen_sock *new_x = xen_sk(new_sk);
 	//struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
 	struct xenbus_transaction t;
 	char   dir[256];
+    char *gref_str;
+    char *service_id;
+    const char *domid;
+    int otherend_id;
 
 	TRACE_ENTRY;
     /*
@@ -1272,17 +1227,20 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     */
 
     // FIXME get this from watch
-    char *gref_str = "-1";
+    gref_str = "-1";
 
     // FIXME get this from sxeaddr
-    char *service_id = "bar";
+    service_id = "bar";
 
 	xenbus_transaction_start(&t);
     sprintf(dir, "/xensocket/service/%s", service_id);
-    const char *domid = xenbus_read(t, "", "domid", NULL);
-    if((rc = xenbus_scanf(t, dir, gref_str, "%d", &(x->otherend_id))) <= 0);
+    domid = xenbus_read(t, "", "domid", NULL);
+    if((rc = xenbus_scanf(t, dir, gref_str, "%d", &otherend_id)) <= 0) {
+        goto err;
+    }
+    x->otherend_id = otherend_id;
 	//sprintf(dir + 18, "%d", DOMID_SELF);
-    x->descriptor_gref = atoi(gref_str);
+    sscanf(gref_str, "%d", &(x->descriptor_gref));
 	if (x->descriptor_gref == -1) {
 		printk(KERN_CRIT "Gref could not be read!");
 		goto err;
@@ -1321,15 +1279,16 @@ err:
 static int xen_listen (struct socket *sock, int backlog) {
     // TODO: check socket state
     int err;
+    const char *domid;
+    struct xenbus_transaction t;
+    const char *service_id;
 
     // xenbus transaction
-    struct xenbus_transaction t;
     xenbus_transaction_start(&t);
     // get own domid:
-    unsigned int domid_len = 0;
-    const char *domid = xenbus_read(t, "", "domid", &domid_len);
+    domid = xenbus_read(t, "", "domid", NULL);
     // FIXME get service id from socket
-    const char *service_id = "service_id";
+    service_id = "service_id";
     err = xenbus_write(t, "/xensocket/service", service_id, domid);
     xenbus_transaction_end(t, 0);
 
