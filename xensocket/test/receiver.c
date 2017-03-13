@@ -27,10 +27,9 @@ int
 main (int argc, char **argv) {
   //const long long tot_bytes_to_rx = 0x2000000;
   const long long tot_bytes_to_rx = 0x2000;
+  struct sockaddr_xe sxeaddr;
   int             sock;
-  struct          sockaddr_xe sxeaddr;
   int             rc = 0;
-  int             gref;
   long long       i = 1;
   long long       bytes_received = 0;
   const int       buflen = 4096;
@@ -38,27 +37,30 @@ main (int argc, char **argv) {
   int             vary_len = 0;
   int             no_mismatch = 1;
   int             bytes_unreceived = 0;
+  struct          sockaddr_xe remote_sxeaddr;
+  socklen_t       addr_len;
 
-  if (argc > 3 || argc < 2) {
-    printf("Usage: %s <peer-domid>\n", argv[0]);
+  if (argc < 2 || argc > 3) {
+    printf("Usage: %s <service>\n", argv[0]);
     return -1;
   }
 
   sxeaddr.sxe_family = AF_XEN;
-
-  sxeaddr.remote_domid = atoi(argv[1]);
-  printf("domid = %d\n", sxeaddr.remote_domid);
+  strcpy(sxeaddr.service, argv[1]);
 
   /* Create the socket. */
-  sock = socket (21, SOCK_STREAM, -1);
+  sock = socket (PF_XEN, SOCK_STREAM, -1);
   if (sock < 0) {
     errno = -ENOTRECOVERABLE;
     perror ("socket");
     exit (EXIT_FAILURE);
   }
 
-  gref = bind (sock, (struct sockaddr *)&sxeaddr, sizeof(sxeaddr));
-  printf("gref = %d\n", gref);
+  bind (sock, (struct sockaddr *)&sxeaddr, sizeof(sxeaddr));
+  listen(sock, 5);
+  addr_len = sizeof(remote_sxeaddr);
+  accept(sock, (struct sockaddr *)&remote_sxeaddr, &addr_len);
+  close(sock);
 
   if (argc == 3) {
     vary_len = atoi(argv[2]);

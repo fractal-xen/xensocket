@@ -17,9 +17,11 @@
 #ifndef __XENSOCKET_H__
 #define __XENSOCKET_H__
 
+#define XENSRVLEN 64
+
 struct sockaddr_xe {
   sa_family_t sxe_family;
-  char service[64];
+  char service[XENSRVLEN];
 };
 
 #define AF_XEN  21

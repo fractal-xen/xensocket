@@ -38,7 +38,7 @@
 
 #define DPRINTK( x, args... ) printk(KERN_CRIT "%s: line %d: " x, __FUNCTION__ , (int)__LINE__ , ## args ); 
 
-//#define DEBUG
+#define DEBUG
 #ifdef DEBUG
 #define TRACE_ENTRY printk(KERN_CRIT "Entering %s\n", __func__)
 #define TRACE_EXIT  printk(KERN_CRIT "Exiting %s\n", __func__)
@@ -126,6 +126,7 @@ struct xen_sock {
 	struct sock             sk;
 	unsigned char           is_server, is_client;
 	domid_t                 otherend_id;
+    char                    service[XENSRVLEN];
 	struct descriptor_page *descriptor_addr;    /* server and client */
 	int                     descriptor_gref;    /* server only */
 	struct vm_struct       *descriptor_area;    /* client only */
@@ -222,6 +223,7 @@ xen_create (struct net *net, struct socket *res_sock, int protocol, int kern) {
 	struct xen_sock *x;
 
 	TRACE_ENTRY;
+    DPRINTK("res_sock@%p\n", res_sock);
 
 	res_sock->state = SS_UNCONNECTED;
 
@@ -236,7 +238,6 @@ xen_create (struct net *net, struct socket *res_sock, int protocol, int kern) {
 
 	printk(KERN_CRIT "pfxen: sk_alloc");
 	sk = sk_alloc(net, PF_XEN, GFP_KERNEL, &xen_proto, 1);
-//  sk = sk_alloc(net, PF_XEN, GFP_KERNEL, &xen_proto);
 	if (!sk) {
 		rc = -ENOMEM;
 		goto out;
@@ -268,18 +269,22 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	int    rc = -EINVAL;
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
-	//struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
-	char dir[256];
+	struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
 	struct xenbus_transaction t;
 
 	TRACE_ENTRY;
+    DPRINTK("sock@%p\n", sock);
 
-// TODO: store sxeaddr->service in socket
-/*
+    // TODO: set socket states
+
 	if (sxeaddr->sxe_family != AF_XEN) {
 		goto err;
 	}
-*/
+    DPRINTK("bind to service = %s\n", sxeaddr->service);
+
+    // store sxeaddr->service in socket
+    strcpy(x->service, sxeaddr->service);
+
 	/* Ensure that bind() is only called once for this socket.
 	 */
 
@@ -293,14 +298,12 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	}
 	x->is_server = 1;
 
-	memset(dir, 0, 256);
-	strcpy(dir, "/xensocket/domain/");
-	sprintf(dir + 18, "%d", x->otherend_id);
 	xenbus_transaction_start(&t);
-	if (!xenbus_exists(t, dir, "gref")) {
-		xenbus_mkdir(t, dir, "gref");
-	}
-	xenbus_printf(t, dir, "gref", "%d", x->descriptor_gref);
+    if(xenbus_exists(t, "/xensocket/service", sxeaddr->service)) {
+        DPRINTK("error: cannot bind(): /xensocket/service/%s is already in use\n", sxeaddr->service);
+        xenbus_transaction_end(t, 0);
+        goto err;
+    }
 	xenbus_transaction_end(t, 0);
 
 	TRACE_EXIT;
@@ -470,6 +473,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     int otherend_id;
 
 	TRACE_ENTRY;
+    DPRINTK("sock@%p\n", sock);
 
 	if (sxeaddr->sxe_family != AF_XEN) {
 		goto err;
@@ -723,6 +727,7 @@ xen_sendmsg (struct socket *sock, struct msghdr *msg, size_t len) {
 	unsigned int		not_copied = len;
 
 	TRACE_ENTRY;
+    DPRINTK("sock@%p\n", sock);
 
 	timeo = sock_sndtimeo(sk, msg->msg_flags & MSG_DONTWAIT);
 
@@ -874,6 +879,7 @@ client_interrupt (int irq, void *dev_id) {
 
 static int
 xen_recvmsg (struct socket *sock, struct msghdr *msg, size_t size, int flags) {
+    // TODO check socket status!
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
@@ -884,10 +890,10 @@ xen_recvmsg (struct socket *sock, struct msghdr *msg, size_t size, int flags) {
 	int                     target;
 
 	TRACE_ENTRY;
+    DPRINTK("sock@%p\n", sock);
 
 	target = sock_rcvlowat(sk, flags&MSG_WAITALL, size);
 	timeo = sock_rcvtimeo(sk, flags&MSG_DONTWAIT);
-
 	while (copied < size) {
 		unsigned int recv_offset = d->recv_offset;
 		unsigned int bytes;
@@ -1054,6 +1060,7 @@ xen_release (struct socket *sock) {
 	struct descriptor_page *d;
 
 	TRACE_ENTRY;
+    DPRINTK("sock@%p\n", sock);
 	if (!sk) {
 		return 0;
 	}
@@ -1215,11 +1222,12 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	struct xenbus_transaction t;
 	char   dir[256];
     char *gref_str;
-    char *service_id;
     int domid;
     int otherend_id;
 
 	TRACE_ENTRY;
+    DPRINTK("sock@%p\n", sock);
+    DPRINTK("newsock@%p\n", newsock);
     /*
 	if (sxeaddr->sxe_family != AF_XEN) {
 		goto err;
@@ -1229,11 +1237,8 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     // FIXME get this from watch
     gref_str = "-1";
 
-    // FIXME get this from sxeaddr
-    service_id = "bar";
-
 	xenbus_transaction_start(&t);
-    sprintf(dir, "/xensocket/service/%s", service_id);
+    sprintf(dir, "/xensocket/service/%s", x->service);
     xenbus_scanf(t, "domid", "", "%d", &domid);
     if((rc = xenbus_scanf(t, dir, gref_str, "%d", &otherend_id)) <= 0) {
         goto err;
@@ -1279,17 +1284,19 @@ static int xen_listen (struct socket *sock, int backlog) {
     // TODO: check socket state
     int domid;
     struct xenbus_transaction t;
-    const char *service_id;
+	struct sock *sk = sock->sk;
+	struct xen_sock *x = xen_sk(sk);
 
+	TRACE_ENTRY;
+    DPRINTK("sock@%p\n", sock);
     // xenbus transaction
     xenbus_transaction_start(&t);
     // get own domid:
     xenbus_scanf(t, "domid", "", "%d", &domid);
-    // FIXME get service id from socket
-    service_id = "service_id";
-    xenbus_printf(t, "/xensocket/service", service_id, "%d", domid);
+    xenbus_printf(t, "/xensocket/service", x->service, "%d", domid);
     xenbus_transaction_end(t, 0);
 
+	TRACE_EXIT;
     return 0;
 }
 
