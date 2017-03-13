@@ -514,6 +514,9 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
 	struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
+	struct xenbus_transaction t;
+	char   dir[256];
+
 
 	TRACE_ENTRY;
 
@@ -535,7 +538,23 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	x->is_client = 1;
 
 	x->otherend_id = sxeaddr->remote_domid;
-	x->descriptor_gref = sxeaddr->shared_page_gref;
+
+	xenbus_transaction_start(&t);
+	memset(dir, 0, 256);
+	strcpy(dir, "/xensocket/domain");
+	sprintf(dir + 18, "%d", DOMID_SELF);
+	if (!xenbus_exists(t, dir, "gref")) {
+		printk(KERN_CRIT "Gref was not stored in xenstore!");
+		goto err;
+	}
+	xenbus_scanf(t, dir, "gref", "%i", &(x->descriptor_gref));
+	if (x->descriptor_gref == -1) {
+		printk(KERN_CRIT "Gref could not be read!");
+		goto err;
+	}
+	xenbus_transaction_end(t, 0);
+
+	//x->descriptor_gref = sxeaddr->shared_page_gref;
 
 	printk(KERN_CRIT "pfxen: mapping descriptor page...");
 	if ((rc = client_map_descriptor_page(x)) != 0) {
