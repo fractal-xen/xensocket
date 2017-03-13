@@ -510,13 +510,13 @@ err:
 
 static int
 xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags) {
+    /* bind code: */
 	int    rc = -EINVAL;
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
 	struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
+	char dir[256];
 	struct xenbus_transaction t;
-	char   dir[256];
-
 
 	TRACE_ENTRY;
 
@@ -537,50 +537,46 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	}
 	x->is_client = 1;
 
-	x->otherend_id = sxeaddr->remote_domid;
-
 	xenbus_transaction_start(&t);
-	memset(dir, 0, 256);
-	strcpy(dir, "/xensocket/domain");
-	sprintf(dir + 18, "%d", DOMID_SELF);
-	if (!xenbus_exists(t, dir, "gref")) {
-		printk(KERN_CRIT "Gref was not stored in xenstore!");
+    // read remote domid from xenstore
+    if((rc = xenbus_scanf(t, "/xensocket/service", sxeaddr->service, "%d", &(x->otherend_id))) < 0) {
+        goto err;
+    }
+
+	printk(KERN_CRIT "pfxen: allocating descriptor page...");
+	if ((rc = server_allocate_descriptor_page(x)) != 0) {
 		goto err;
 	}
-	xenbus_scanf(t, dir, "gref", "%i", &(x->descriptor_gref));
-	if (x->descriptor_gref == -1) {
-		printk(KERN_CRIT "Gref could not be read!");
+	printk(KERN_CRIT "pfxen: allocating event channel...");
+	if ((rc = server_allocate_event_channel(x)) != 0) {
 		goto err;
 	}
+	printk(KERN_CRIT "pfxen: allocating buffer pages...");
+	if ((rc = server_allocate_buffer_pages(x)) != 0) {
+		goto err;
+	}
+
+    sprintf(dir, "/xensocket/service/%s", sxeaddr->service);
+    char gref_str[15];
+    sprintf(gref_str, "%d", x->descriptor_gref);
+    if(xenbus_exists(t, dir, gref_str)) {
+        // already exists
+        // TODO set rc?
+        goto err;
+    }
+    // write own domid to xenstore
+    if((rc = xenbus_printf(t, dir, gref_str, "%d", DOMID_SELF)) != 0) {
+        goto err;
+    }
 	xenbus_transaction_end(t, 0);
 
-	//x->descriptor_gref = sxeaddr->shared_page_gref;
-
-	printk(KERN_CRIT "pfxen: mapping descriptor page...");
-	if ((rc = client_map_descriptor_page(x)) != 0) {
-		goto err;
-	}
-	printk(KERN_CRIT "pfxen: mapping event channel...");
-	if ((rc = client_bind_event_channel(x)) != 0) {
-		goto err_unmap_descriptor;
-	}
-	printk(KERN_CRIT "pfxen: mapping buffer pages...");
-	if ((rc = client_map_buffer_pages(x)) != 0) {
-		goto err_unmap_buffer;
-	}
-	
-	TRACE_EXIT;
-	return 0;
-
-err_unmap_buffer:
-	client_unmap_buffer_pages(x);
-
-err_unmap_descriptor:
-	client_unmap_descriptor_page(x);
-	notify_remote_via_evtchn(x->evtchn_local_port);
+	return x->descriptor_gref;
 
 err:
+	TRACE_ERROR;
 	return rc;
+    /* bind end! */
+    
 }
 
 static int
@@ -1258,11 +1254,86 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 
 
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
-  return -EOPNOTSUPP;
+	int    rc = -EINVAL;
+	struct sock *sk = sock->sk;
+	struct xen_sock *x = xen_sk(sk);
+    struct sock *new_sk = newsock->sk;
+    struct xen_sock *new_x = xen_sk(new_sk);
+	struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
+	struct xenbus_transaction t;
+	char   dir[256];
+
+	TRACE_ENTRY;
+
+	if (sxeaddr->sxe_family != AF_XEN) {
+		goto err;
+	}
+
+
+	x->otherend_id = sxeaddr->remote_domid;
+
+	xenbus_transaction_start(&t);
+	memset(dir, 0, 256);
+	strcpy(dir, "/xensocket/domain");
+	//sprintf(dir + 18, "%d", DOMID_SELF);
+	if (!xenbus_exists(t, dir, "gref")) {
+		printk(KERN_CRIT "Gref was not stored in xenstore!");
+		goto err;
+	}
+	xenbus_scanf(t, dir, "gref", "%i", &(x->descriptor_gref));
+	if (x->descriptor_gref == -1) {
+		printk(KERN_CRIT "Gref could not be read!");
+		goto err;
+	}
+	xenbus_transaction_end(t, 0);
+
+	//x->descriptor_gref = sxeaddr->shared_page_gref;
+
+	printk(KERN_CRIT "pfxen: mapping descriptor page...");
+	if ((rc = client_map_descriptor_page(x)) != 0) {
+		goto err;
+	}
+	printk(KERN_CRIT "pfxen: mapping event channel...");
+	if ((rc = client_bind_event_channel(x)) != 0) {
+		goto err_unmap_descriptor;
+	}
+	printk(KERN_CRIT "pfxen: mapping buffer pages...");
+	if ((rc = client_map_buffer_pages(x)) != 0) {
+		goto err_unmap_buffer;
+	}
+	
+	TRACE_EXIT;
+	return 0;
+
+err_unmap_buffer:
+	client_unmap_buffer_pages(x);
+
+err_unmap_descriptor:
+	client_unmap_descriptor_page(x);
+	notify_remote_via_evtchn(x->evtchn_local_port);
+
+err:
+	return rc;
+    /* end old connect code */
 }
 
 static int xen_listen (struct socket *sock, int backlog) {
-  return -EOPNOTSUPP;
+    // TODO: check socket state
+    int err;
+
+    // xenbus transaction
+    struct xenbus_transaction t;
+    xenbus_transaction_start(&t);
+    // get own domid:
+    unsigned int domid_len = 0;
+    const char *domid = xenbus_read(t, "", "domid", &domid_len);
+    // FIXME get service id from socket
+    const char *service_id = "service_id";
+    err = xenbus_write(t, "/xensocket/service", service_id, domid);
+    xenbus_transaction_end(t, 0);
+
+    kfree(domid);
+    return 0;
 }
 
 /************************************************************************

@@ -19,8 +19,7 @@
 
 struct sockaddr_xe {
   sa_family_t sxe_family;
-  u_int16_t   remote_domid;
-  int         shared_page_gref;
+  char service[64];
 };
 
 #define AF_XEN  21
