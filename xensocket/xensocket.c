@@ -565,7 +565,8 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
         goto err;
     }
     // write own domid to xenstore
-    if((rc = xenbus_printf(t, dir, gref_str, "%d", DOMID_SELF)) != 0) {
+    const char *domid = xenbus_read(t, "", "domid", NULL);
+    if((rc = xenbus_write(t, dir, gref_str, domid)) < 0) {
         goto err;
     }
 	xenbus_transaction_end(t, 0);
@@ -1259,28 +1260,29 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	struct xen_sock *x = xen_sk(sk);
     struct sock *new_sk = newsock->sk;
     struct xen_sock *new_x = xen_sk(new_sk);
-	struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
+	//struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
 	struct xenbus_transaction t;
 	char   dir[256];
 
 	TRACE_ENTRY;
-
+    /*
 	if (sxeaddr->sxe_family != AF_XEN) {
 		goto err;
 	}
+    */
 
+    // FIXME get this from watch
+    char *gref_str = "-1";
 
-	x->otherend_id = sxeaddr->remote_domid;
+    // FIXME get this from sxeaddr
+    char *service_id = "bar";
 
 	xenbus_transaction_start(&t);
-	memset(dir, 0, 256);
-	strcpy(dir, "/xensocket/domain");
+    sprintf(dir, "/xensocket/service/%s", service_id);
+    const char *domid = xenbus_read(t, "", "domid", NULL);
+    if((rc = xenbus_scanf(t, dir, gref_str, "%d", &(x->otherend_id))) <= 0);
 	//sprintf(dir + 18, "%d", DOMID_SELF);
-	if (!xenbus_exists(t, dir, "gref")) {
-		printk(KERN_CRIT "Gref was not stored in xenstore!");
-		goto err;
-	}
-	xenbus_scanf(t, dir, "gref", "%i", &(x->descriptor_gref));
+    x->descriptor_gref = atoi(gref_str);
 	if (x->descriptor_gref == -1) {
 		printk(KERN_CRIT "Gref could not be read!");
 		goto err;
@@ -1314,7 +1316,6 @@ err_unmap_descriptor:
 
 err:
 	return rc;
-    /* end old connect code */
 }
 
 static int xen_listen (struct socket *sock, int backlog) {
