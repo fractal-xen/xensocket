@@ -350,9 +350,11 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	memset(dir, 0, 256);
 	strcpy(dir, "/xensocket/domain/");
 	sprintf(dir + 18, "%d", x->otherend_id);
-	printk(KERN_CRIT "pfxen: writing to xenstore path: %s", dir);
 	xenbus_transaction_start(&t);
-	xenbus_printf(t, dir, "/gref", "%d", x->descriptor_gref);
+	if (!xenbus_exists(t, dir, "gref")) {
+		xenbus_mkdir(t, dir, "gref");
+	}
+	xenbus_printf(t, dir, "gref", "%d", x->descriptor_gref);
 	xenbus_transaction_end(t, 0);
 
 	return x->descriptor_gref;
