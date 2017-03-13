@@ -466,7 +466,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	char dir[256];
 	struct xenbus_transaction t;
     char gref_str[15];
-    const char *domid;
+    int domid;
     int otherend_id;
 
 	TRACE_ENTRY;
@@ -516,8 +516,8 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
         goto err;
     }
     // write own domid to xenstore
-    domid = xenbus_read(t, "", "domid", NULL);
-    if((rc = xenbus_write(t, dir, gref_str, domid)) < 0) {
+    xenbus_scanf(t, "domid", "", "%d", &domid);
+    if((rc = xenbus_printf(t, dir, gref_str, "%d", domid)) < 0) {
         goto err;
     }
 	xenbus_transaction_end(t, 0);
@@ -1216,7 +1216,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	char   dir[256];
     char *gref_str;
     char *service_id;
-    const char *domid;
+    int domid;
     int otherend_id;
 
 	TRACE_ENTRY;
@@ -1234,12 +1234,11 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 
 	xenbus_transaction_start(&t);
     sprintf(dir, "/xensocket/service/%s", service_id);
-    domid = xenbus_read(t, "", "domid", NULL);
+    xenbus_scanf(t, "domid", "", "%d", &domid);
     if((rc = xenbus_scanf(t, dir, gref_str, "%d", &otherend_id)) <= 0) {
         goto err;
     }
     x->otherend_id = otherend_id;
-	//sprintf(dir + 18, "%d", DOMID_SELF);
     sscanf(gref_str, "%d", &(x->descriptor_gref));
 	if (x->descriptor_gref == -1) {
 		printk(KERN_CRIT "Gref could not be read!");
@@ -1278,21 +1277,19 @@ err:
 
 static int xen_listen (struct socket *sock, int backlog) {
     // TODO: check socket state
-    int err;
-    const char *domid;
+    int domid;
     struct xenbus_transaction t;
     const char *service_id;
 
     // xenbus transaction
     xenbus_transaction_start(&t);
     // get own domid:
-    domid = xenbus_read(t, "", "domid", NULL);
+    xenbus_scanf(t, "domid", "", "%d", &domid);
     // FIXME get service id from socket
     service_id = "service_id";
-    err = xenbus_write(t, "/xensocket/service", service_id, domid);
+    xenbus_printf(t, "/xensocket/service", service_id, "%d", domid);
     xenbus_transaction_end(t, 0);
 
-    kfree(domid);
     return 0;
 }
 
@@ -1304,6 +1301,8 @@ static int xen_listen (struct socket *sock, int backlog) {
 static int __init
 xensocket_init (void) {
 	int rc = -1;
+	struct xenbus_transaction t;
+    int domid;
 
 	TRACE_ENTRY;
 
@@ -1317,6 +1316,10 @@ xensocket_init (void) {
 	printk(KERN_CRIT "pfxen: registering socket family...\n");
 	sock_register(&xen_family_ops);
 	printk(KERN_CRIT "pfxen: xen socket family registered\n");
+	xenbus_transaction_start(&t);
+    xenbus_scanf(t, "domid", "", "%d", &domid);
+	xenbus_transaction_end(t, 0);
+    printk(KERN_CRIT "pfxen: my domid = %d\n", domid);
 
 out:
 	TRACE_EXIT;
