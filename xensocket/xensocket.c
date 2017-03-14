@@ -140,6 +140,15 @@ struct xen_sock {
 	int                     buffer_order;
 };
 
+/* struct xensocket_xenbus_watch:
+ * 
+ * @xbw: this must be the first element in the structure.
+ */
+struct xensocket_xenbus_watch {
+    struct xenbus_watch xbw;
+    spinlock_t lck;
+};
+
 static void
 initialize_xen_sock (struct xen_sock *x) {
 	x->is_server = 0;
@@ -1214,6 +1223,9 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
     TRACE_ENTRY;
     DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, vec, len);
+    while(len--) {
+        DPRINTK("[%d] %s\n", len, vec[len]);
+    }
     TRACE_EXIT;
 }
 
@@ -1254,6 +1266,10 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     DPRINTK("");
     // stupid idea for debugging
     //while(1) {}
+    unregister_xenbus_watch(&xbw);
+    TRACE_EXIT;
+    return 0;
+    // TODO block until the watch gets the event of a new client
     // FIXME get this from watch
     gref_str = "-1";
 
@@ -1326,6 +1342,12 @@ static int xen_listen (struct socket *sock, int backlog) {
  * Functions to interface this module with the rest of the Linux streams
  * code.
  ************************************************************************/
+ /*
+static struct xenbus_watch xbwg = {
+    .node = "/xensocket/service",
+    .callback = xen_watch_service
+};
+*/
 
 static int __init
 xensocket_init (void) {
@@ -1350,6 +1372,9 @@ xensocket_init (void) {
 	xenbus_transaction_end(t, 0);
     printk(KERN_CRIT "pfxen: my domid = %d\n", domid);
 
+    // this is just for testing xenbus watch!
+    //register_xenbus_watch(&xbwg);
+
 out:
 	TRACE_EXIT;
 	return rc;
@@ -1361,6 +1386,9 @@ xensocket_exit (void) {
 
 	sock_unregister(AF_XEN);
 	proto_unregister(&xen_proto);
+
+    // this is just for testing xenbus watch!
+    //unregister_xenbus_watch(&xbwg);
 
 	TRACE_EXIT;
 }
