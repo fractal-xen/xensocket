@@ -41,24 +41,25 @@ main (int argc, char **argv) {
   int             unsent_bytes = 0;
 
   if (argc > 4) {
-    printf("Usage: %s <peer-domid> <grant-ref>\n", argv[0]);
+    printf("Usage: %s <service>\n", argv[0]);
     return -1;
   }
 
   sxeaddr.sxe_family = AF_XEN;
+  strcpy(sxeaddr.service, argv[1]);
 
-  sxeaddr.remote_domid = atoi(argv[1]);
-  printf("domid = %d\n", sxeaddr.remote_domid);
+  //sxeaddr.remote_domid = atoi(argv[1]);
+  //printf("domid = %d\n", sxeaddr.remote_domid);
 
-  sxeaddr.shared_page_gref = atoi(argv[2]);
-  printf("gref = %d\n", sxeaddr.shared_page_gref);
+  //sxeaddr.shared_page_gref = atoi(argv[2]);
+  //printf("gref = %d\n", sxeaddr.shared_page_gref);
 
   if (argc == 4) {
     vary_len = atoi(argv[3]);
   }
 
   /* Create the socket. */
-  sock = socket (21, SOCK_STREAM, -1);
+  sock = socket (AF_XEN, SOCK_STREAM, -1);
   if (sock < 0) {
     errno = ENOTRECOVERABLE;
     perror ("socket");

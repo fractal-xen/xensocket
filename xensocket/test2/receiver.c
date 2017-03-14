@@ -11,15 +11,18 @@
 int main(int argc, char **argv) {
   int sock;
   int rc;
+  int addr_len;
+  int newsock;
   struct sockaddr_xe sxeaddr;
+  struct sockaddr_xe remote_sxeaddr;
 
   if (argc != 2) {
-    printf("Usage: %s <peer-domid>\n", argv[0]);
+    printf("Usage: %s <service>\n", argv[0]);
     return -1;
   }
 
   sxeaddr.sxe_family = AF_XEN;
-  sxeaddr.remote_domid = atoi(argv[1]);
+  strcpy(sxeaddr.service, argv[1]);
 
   sock = socket(AF_XEN, SOCK_STREAM, -1);
   if (sock < 0) {
@@ -28,14 +31,20 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-  int gref = bind(sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr));
-  printf("gref = %d\n", gref);
+  printf("binding socket");
+  bind(sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr));
+  printf("start listening");
+  listen(sock, 5);
+  addr_len = sizeof(remote_sxeaddr);
+  newsock = accept(sock, (struct sockaddr*)&remote_sxeaddr, &addr_len);
+  printf("accepted connection");
+  close(sock);
 
   while(1) {
     char buffer[4096];
-    rc = recv(sock, buffer, 4096, MSG_DONTWAIT);
+    rc = recv(newsock, buffer, 4096, MSG_DONTWAIT);
     if (rc <= 0) {
-      shutdown(sock, SHUT_RDWR);
+      shutdown(newsock, SHUT_RDWR);
       exit(0);
     }
     else {
