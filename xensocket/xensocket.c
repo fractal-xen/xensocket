@@ -1232,7 +1232,9 @@ static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsign
     }
     */
     if(len > 0) {
-        if(strncmp(vec[0], xbw->node, strlen(xbw->node)) == 0) {
+        // check if 1) node is a prefix of the path and 2) if "path" is longer than "node/"
+        x->path_len = strlen(xbw->node);
+        if(strncmp(vec[0], xbw->node, x->path_len) == 0 && (strlen(vec[0]) - x->path_len > 1)) {
             spin_unlock(&(x->lck));
         }
     }
