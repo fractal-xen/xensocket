@@ -11,7 +11,7 @@
 int main(int argc, char **argv) {
   int sock;
   int rc;
-  int addr_len;
+  unsigned int addr_len;
   int newsock;
   struct sockaddr_xe sxeaddr;
   struct sockaddr_xe remote_sxeaddr;
@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
   sxeaddr.sxe_family = AF_XEN;
   strcpy(sxeaddr.service, argv[1]);
 
+  printf("creating socket");
   sock = socket(AF_XEN, SOCK_STREAM, -1);
   if (sock < 0) {
     errno = -ENOTRECOVERABLE;
