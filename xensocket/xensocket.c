@@ -1211,34 +1211,53 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 	}
 }
 
+static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
+    TRACE_ENTRY;
+    DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, vec, len);
+    TRACE_EXIT;
+}
 
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	int    rc = -EINVAL;
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
-    //struct sock *new_sk = newsock->sk;
-    //struct xen_sock *new_x = xen_sk(new_sk);
-	//struct sockaddr_xe *sxeaddr = (struct sockaddr_xe *)uaddr;
+    struct sock *new_sk;
+    struct xen_sock *new_x;
 	struct xenbus_transaction t;
 	char   dir[256];
     char *gref_str;
     int domid;
     int otherend_id;
+    struct xenbus_watch xbw = {
+        .node = dir,
+        .callback = xen_watch_service
+    };
 
 	TRACE_ENTRY;
     DPRINTK("sock@%p\n", sock);
     DPRINTK("newsock@%p\n", newsock);
-    /*
-	if (sxeaddr->sxe_family != AF_XEN) {
-		goto err;
-	}
-    */
 
+    // create child sk for newsock:
+    DPRINTK("");
+    xen_create(sock_net(sk), newsock, -1, 0);
+    DPRINTK("");
+    
+    DPRINTK("");
+    new_sk = newsock->sk;
+    new_x = xen_sk(new_sk);
+    DPRINTK("");
+
+    strcpy(new_x->service, x->service);
+    DPRINTK("");
+    sprintf(dir, "/xensocket/service/%s", x->service);
+    register_xenbus_watch(&xbw);
+    DPRINTK("");
+    // stupid idea for debugging
+    //while(1) {}
     // FIXME get this from watch
     gref_str = "-1";
 
 	xenbus_transaction_start(&t);
-    sprintf(dir, "/xensocket/service/%s", x->service);
     xenbus_scanf(t, "domid", "", "%d", &domid);
     if((rc = xenbus_scanf(t, dir, gref_str, "%d", &otherend_id)) <= 0) {
         goto err;
@@ -1253,14 +1272,17 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 
 	//x->descriptor_gref = sxeaddr->shared_page_gref;
 
+    DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping descriptor page...");
 	if ((rc = client_map_descriptor_page(x)) != 0) {
 		goto err;
 	}
+    DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping event channel...");
 	if ((rc = client_bind_event_channel(x)) != 0) {
 		goto err_unmap_descriptor;
 	}
+    DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping buffer pages...");
 	if ((rc = client_map_buffer_pages(x)) != 0) {
 		goto err_unmap_buffer;
