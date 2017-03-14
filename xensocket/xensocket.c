@@ -1223,10 +1223,18 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 }
 
 static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
+    xensocket_xenbus_watch *x = (xensocket_xenbus_watch*) xbw;
     TRACE_ENTRY;
     DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, vec, len);
+    /*
     while(len--) {
         DPRINTK("[%d] %s\n", len, vec[len]);
+    }
+    */
+    if(len > 0) {
+        if(strncmp(vec[0], xbw->node, strlen(xbw->node)) == 0) {
+            spin_unlock(&(x->lck));
+        }
     }
     TRACE_EXIT;
 }
@@ -1246,34 +1254,33 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
         .node = dir,
         .callback = xen_watch_service
     };
+    struct xensocket_xenbus_watch xsbw;
+    xsbw.xbw = &xbw;
+    spin_lock_init(&(xsbw.lck));
+    spin_lock(&(xsbw.lck));
 
 	TRACE_ENTRY;
     DPRINTK("sock@%p\n", sock);
     DPRINTK("newsock@%p\n", newsock);
 
     // create child sk for newsock:
-    DPRINTK("");
     xen_create(sock_net(sk), newsock, -1, 0);
-    DPRINTK("");
     
-    DPRINTK("");
     new_sk = newsock->sk;
     new_x = xen_sk(new_sk);
-    DPRINTK("");
 
     strcpy(new_x->service, x->service);
-    DPRINTK("");
     sprintf(dir, "/xensocket/service/%s", x->service);
-    register_xenbus_watch(&xbw);
-    DPRINTK("");
+    register_xenbus_watch(&xsbw);
+    spin_lock(&(xsbw.lck));
     // stupid idea for debugging
     //while(1) {}
-    unregister_xenbus_watch(&xbw);
+    unregister_xenbus_watch(&xsbw);
     TRACE_EXIT;
     return 0;
     // TODO block until the watch gets the event of a new client
     // FIXME get this from watch
-    gref_str = "-1";
+    //gref_str = "-1";
 
 	xenbus_transaction_start(&t);
     xenbus_scanf(t, "domid", "", "%d", &domid);
