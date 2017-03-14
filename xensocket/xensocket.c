@@ -140,15 +140,6 @@ struct xen_sock {
 	int                     buffer_order;
 };
 
-/* struct xensocket_xenbus_watch:
- * 
- * @xbw: this must be the first element in the structure.
- */
-struct xensocket_xenbus_watch {
-    struct xenbus_watch xbw;
-    spinlock_t lck;
-};
-
 static void
 initialize_xen_sock (struct xen_sock *x) {
 	x->is_server = 0;
@@ -165,6 +156,17 @@ initialize_xen_sock (struct xen_sock *x) {
 	x->buffer_handles = NULL;
 	x->buffer_order = -1;
 }
+
+/* struct xensocket_xenbus_watch:
+ * 
+ * @xbw: this must be the first element in the structure.
+ */
+struct xensocket_xenbus_watch {
+    struct xenbus_watch xbw;
+    spinlock_t lck;
+    unsigned int path_len;
+    int gref;
+};
 
 static struct proto xen_proto = {
 	.name           = "XEN",
