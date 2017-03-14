@@ -1223,7 +1223,7 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 }
 
 static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
-    xensocket_xenbus_watch *x = (xensocket_xenbus_watch*) xbw;
+    struct xensocket_xenbus_watch *x = (struct xensocket_xenbus_watch*) xbw;
     TRACE_ENTRY;
     DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, vec, len);
     /*
@@ -1257,7 +1257,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
         .callback = xen_watch_service
     };
     struct xensocket_xenbus_watch xsbw;
-    xsbw.xbw = &xbw;
+    xsbw.xbw = xbw;
     spin_lock_init(&(xsbw.lck));
     spin_lock(&(xsbw.lck));
 
