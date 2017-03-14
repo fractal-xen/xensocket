@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
 
   struct sockaddr_xe sxeaddr;
   sxeaddr.sxe_family = AF_XEN;
-  strcpy(sxeaddr.sxe_family, argv[1]);
+  strcpy(sxeaddr.service, argv[1]);
 
   int sock = socket(AF_XEN, SOCK_STREAM, -1);
   if (sock  < 0) {
