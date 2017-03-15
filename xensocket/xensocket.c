@@ -487,6 +487,9 @@ static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsign
         rc = xenbus_exists(t, vec[0], "");
         xenbus_transaction_end(t, 0);
         if(!rc) {
+            DPRINTK("%s was removed!\n", vec[0]);
+            // unregister myself:
+            unregister_xenbus_watch(xbw);
             // release sem:
             up(&(x->sem));
         }
@@ -571,7 +574,6 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     if(down_interruptible(&(xsbw.sem))) {
         DPRINTK("down_interruptible != 0\n");
     }
-    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
 
 	TRACE_EXIT;
 	return x->descriptor_gref;
@@ -1287,6 +1289,8 @@ static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigne
                     // success
                     x->gref = gref;
                     x->domid = domid;
+                    // unregister myself:
+                    unregister_xenbus_watch(xbw);
                     // release sem:
                     up(&(x->sem));
                 }
@@ -1333,8 +1337,6 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
         DPRINTK("down_interruptible != 0\n");
     }
 
-    // stop watch:
-    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
     DPRINTK("xsbw.gref = %d, xsbw.domid = %d\n", xsbw.gref, xsbw.domid);
 
     x->descriptor_gref = xsbw.gref;
