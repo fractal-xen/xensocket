@@ -33,7 +33,8 @@ int main(int argc, char **argv) {
      */
     bind(sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr));
     listen(sock, 5);
-    int newsock = accept(sock, (struct sockaddr*) &remote_sxeaddr, sizeof(remote_sxeaddr));
+    unsigned int addr_len = sizeof(remote_sxeaddr);
+    int newsock = accept(sock, (struct sockaddr*) &remote_sxeaddr, &addr_len);
 
     printf("connected\n");
 
@@ -51,7 +52,7 @@ int main(int argc, char **argv) {
         int sent = 0;
         int len = strlen(input);
         while(sent < len) {
-            sent = sent + send(sock, input + sent, len - sent, 0);
+            sent = sent + send(newsock, input + sent, len - sent, 0);
             printf("Sent %d bytes\n", sent);
         }
     }
