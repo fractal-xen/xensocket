@@ -64,7 +64,8 @@ static int xen_recvmsg (struct socket *sock, struct msghdr *m, size_t size, int 
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
 static int xen_listen (struct socket *sock, int backlog);
 
-static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len);
+static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigned int len);
+static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsigned int len);
 static int server_allocate_descriptor_page (struct xen_sock *x);
 static int server_allocate_event_channel (struct xen_sock *x);
 static int server_allocate_buffer_pages (struct xen_sock *x);
@@ -484,7 +485,7 @@ static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsign
         }
         xenbus_transaction_start(&t);
         rc = xenbus_exists(t, vec[0], "");
-        xenbus_transaction_end(&t);
+        xenbus_transaction_end(t, 0);
         if(!rc) {
             // release sem:
             up(&(x->sem));
@@ -1280,6 +1281,7 @@ static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigne
             if(sscanf(gref_str, "%d", &gref) > 0) {
                 xenbus_transaction_start(&t);
                 rc = xenbus_scanf(t, xbw->node, gref_str, "%d", &domid);
+                xenbus_rm(t, xbw->node, gref_str);
                 xenbus_transaction_end(t, 0);
                 if(rc > 0) {
                     // success
