@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
 
         int sent = 0;
         int len = strlen(input);
-        while(sent < len) {
+        while(sent < len && sent >= 0) {
             sent = sent + send(newsock, input + sent, len - sent, 0);
             printf("Sent %d bytes\n", sent);
         }
