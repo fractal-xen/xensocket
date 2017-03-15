@@ -48,12 +48,6 @@ main (int argc, char **argv) {
   sxeaddr.sxe_family = AF_XEN;
   strcpy(sxeaddr.service, argv[1]);
 
-  //sxeaddr.remote_domid = atoi(argv[1]);
-  //printf("domid = %d\n", sxeaddr.remote_domid);
-
-  //sxeaddr.shared_page_gref = atoi(argv[2]);
-  //printf("gref = %d\n", sxeaddr.shared_page_gref);
-
   if (argc == 4) {
     vary_len = atoi(argv[3]);
   }

@@ -163,9 +163,10 @@ initialize_xen_sock (struct xen_sock *x) {
  */
 struct xensocket_xenbus_watch {
     struct xenbus_watch xbw;
-    spinlock_t lck;
+    struct semaphore sem;
     unsigned int path_len;
     int gref;
+    domid_t domid;
 };
 
 static struct proto xen_proto = {
@@ -1223,19 +1224,37 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 }
 
 static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
+	int    rc = -EINVAL;
+    const char *gref_str;
+    int gref, domid;
     struct xensocket_xenbus_watch *x = (struct xensocket_xenbus_watch*) xbw;
+	struct xenbus_transaction t;
+
     TRACE_ENTRY;
     DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, vec, len);
-    /*
-    while(len--) {
-        DPRINTK("[%d] %s\n", len, vec[len]);
-    }
-    */
+
     if(len > 0) {
-        // check if 1) node is a prefix of the path and 2) if "path" is longer than "node/"
+        /* check if
+         * 1) node is a prefix of the path and
+         * 2) if "path" is longer than "node/"
+         */
         x->path_len = strlen(xbw->node);
+        DPRINTK("path = %s\n", vec[0]);
         if(strncmp(vec[0], xbw->node, x->path_len) == 0 && (strlen(vec[0]) - x->path_len > 1)) {
-            spin_unlock(&(x->lck));
+            x->gref = -2; // dbg
+            gref_str = vec[0] + x->path_len + 1;
+            if(sscanf(gref_str, "%d", &gref) > 0) {
+                xenbus_transaction_start(&t);
+                rc = xenbus_scanf(t, xbw->node, gref_str, "%d", &domid);
+                xenbus_transaction_end(t, 0);
+                if(rc > 0) {
+                    // success
+                    x->gref = gref;
+                    x->domid = domid;
+                    // release sem:
+                    up(&(x->sem));
+                }
+            }
         }
     }
     TRACE_EXIT;
@@ -1247,19 +1266,8 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	struct xen_sock *x = xen_sk(sk);
     struct sock *new_sk;
     struct xen_sock *new_x;
-	struct xenbus_transaction t;
 	char   dir[256];
-    char *gref_str;
-    int domid;
-    int otherend_id;
-    struct xenbus_watch xbw = {
-        .node = dir,
-        .callback = xen_watch_service
-    };
     struct xensocket_xenbus_watch xsbw;
-    xsbw.xbw = xbw;
-    spin_lock_init(&(xsbw.lck));
-    spin_lock(&(xsbw.lck));
 
 	TRACE_ENTRY;
     DPRINTK("sock@%p\n", sock);
@@ -1273,43 +1281,48 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 
     strcpy(new_x->service, x->service);
     sprintf(dir, "/xensocket/service/%s", x->service);
-    register_xenbus_watch(&xsbw);
-    spin_lock(&(xsbw.lck));
-    // stupid idea for debugging
-    //while(1) {}
-    unregister_xenbus_watch(&xsbw);
-    TRACE_EXIT;
-    return 0;
-    // TODO block until the watch gets the event of a new client
-    // FIXME get this from watch
-    //gref_str = "-1";
 
-	xenbus_transaction_start(&t);
-    xenbus_scanf(t, "domid", "", "%d", &domid);
-    if((rc = xenbus_scanf(t, dir, gref_str, "%d", &otherend_id)) <= 0) {
-        goto err;
+    xsbw.xbw.node = dir;
+    xsbw.xbw.callback = xen_watch_service;
+    xsbw.gref = -1;
+    // init as locked:
+    sema_init(&(xsbw.sem), 0);
+
+    // start watch:
+    register_xenbus_watch((struct xenbus_watch*)&xsbw);
+
+    // wait for sem release:
+    if(down_interruptible(&(xsbw.sem))) {
+        //failed
+        DPRINTK("down_interruptible != 0\n");
     }
-    x->otherend_id = otherend_id;
-    sscanf(gref_str, "%d", &(x->descriptor_gref));
-	if (x->descriptor_gref == -1) {
+
+    // stop watch:
+    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
+    DPRINTK("xsbw.gref = %d, xsbw.domid = %d\n", xsbw.gref, xsbw.domid);
+
+    x->descriptor_gref = xsbw.gref;
+    x->otherend_id = xsbw.domid;
+
+    // not needed
+    //xenbus_scanf(t, "domid", "", "%d", &domid);
+
+	if (x->descriptor_gref < 0) {
 		printk(KERN_CRIT "Gref could not be read!");
 		goto err;
 	}
-	xenbus_transaction_end(t, 0);
 
-	//x->descriptor_gref = sxeaddr->shared_page_gref;
-
-    DPRINTK("");
+    //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping descriptor page...");
 	if ((rc = client_map_descriptor_page(x)) != 0) {
 		goto err;
 	}
-    DPRINTK("");
+    //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping event channel...");
 	if ((rc = client_bind_event_channel(x)) != 0) {
 		goto err_unmap_descriptor;
 	}
-    DPRINTK("");
+    //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping buffer pages...");
 	if ((rc = client_map_buffer_pages(x)) != 0) {
 		goto err_unmap_buffer;
