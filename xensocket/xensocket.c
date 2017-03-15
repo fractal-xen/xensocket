@@ -1339,33 +1339,33 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 
     DPRINTK("xsbw.gref = %d, xsbw.domid = %d\n", xsbw.gref, xsbw.domid);
 
-    x->descriptor_gref = xsbw.gref;
-    x->otherend_id = xsbw.domid;
+    new_x->descriptor_gref = xsbw.gref;
+    new_x->otherend_id = xsbw.domid;
 
     // not needed
     //xenbus_scanf(t, "domid", "", "%d", &domid);
 
-	if (x->descriptor_gref < 0) {
+	if (new_x->descriptor_gref < 0) {
 		printk(KERN_CRIT "Gref could not be read!");
 		goto err;
 	}
 
     //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping descriptor page...");
-	if ((rc = client_map_descriptor_page(x)) != 0) {
+	if ((rc = client_map_descriptor_page(new_x)) != 0) {
 		goto err;
 	}
     //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping event channel...");
-	if ((rc = client_bind_event_channel(x)) != 0) {
+	if ((rc = client_bind_event_channel(new_x)) != 0) {
 		goto err_unmap_descriptor;
 	}
     //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping buffer pages...");
-	if ((rc = client_map_buffer_pages(x)) != 0) {
+	if ((rc = client_map_buffer_pages(new_x)) != 0) {
 		goto err_unmap_buffer;
 	}
-	
+
 	TRACE_EXIT;
 	return 0;
 

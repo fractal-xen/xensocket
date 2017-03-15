@@ -9,48 +9,51 @@
 #include "../xensocket.h"
 
 int main(int argc, char **argv) {
-  int sock;
-  int rc;
-  unsigned int addr_len;
-  int newsock;
-  struct sockaddr_xe sxeaddr;
-  struct sockaddr_xe remote_sxeaddr;
+    int sock;
+    struct sockaddr_xe sxeaddr;
+    // struct sockaddr_xe remote_sxeaddr;
 
-  if (argc != 2) {
-    printf("Usage: %s <service>\n", argv[0]);
-    return -1;
-  }
-
-  sxeaddr.sxe_family = AF_XEN;
-  strcpy(sxeaddr.service, argv[1]);
-
-  printf("creating socket");
-  sock = socket(AF_XEN, SOCK_STREAM, -1);
-  if (sock < 0) {
-    errno = -ENOTRECOVERABLE;
-    perror("socket");
-    exit(EXIT_FAILURE);
-  }
-
-  printf("binding socket");
-  bind(sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr));
-  printf("start listening");
-  listen(sock, 5);
-  addr_len = sizeof(remote_sxeaddr);
-  newsock = accept(sock, (struct sockaddr*)&remote_sxeaddr, &addr_len);
-  printf("accepted connection");
-  close(sock);
-
-  while(1) {
-    char buffer[4096];
-    rc = recv(newsock, buffer, 4096, MSG_DONTWAIT);
-    if (rc <= 0) {
-      shutdown(newsock, SHUT_RDWR);
-      exit(0);
+    if (argc != 2) {
+        printf("Usage: %s <service>\n", argv[0]);
+        return -1;
     }
-    else {
-      buffer[rc] = '\0';
-      printf("%s\n", buffer);
+
+    sxeaddr.sxe_family = AF_XEN;
+    strcpy(sxeaddr.service, argv[1]);
+
+    printf("creating socket\n");
+    sock = socket(AF_XEN, SOCK_STREAM, -1);
+    if (sock < 0) {
+        errno = -ENOTRECOVERABLE;
+        perror("socket\n");
+        exit(EXIT_FAILURE);
     }
-  }
+
+    //printf("binding socket\n");
+    //bind(sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr));
+    //printf("start listening\n");
+    //listen(sock, 5);
+    //int newsock = accept(sock, (struct sockaddr*)&remote_sxeaddr, sizeof(remote_sxeaddr));
+    //printf("accepted connection\n");
+    //close(sock);
+    int rc = connect (sock, (struct sockaddr*) &sxeaddr, sizeof(sxeaddr)    );
+    if (rc < 0) {
+        printf("connect failed\n");
+        exit(1);
+    }
+
+    printf("connected\n");
+
+    while(1) {
+        char buffer[4096];
+        rc = recv(sock, buffer, 4096, MSG_DONTWAIT);
+        if (rc <= 0) {
+            shutdown(sock, SHUT_RDWR);
+            exit(0);
+        }
+        else {
+            buffer[rc] = '\0';
+            printf("%s\n", buffer);
+        }
+    }
 }
