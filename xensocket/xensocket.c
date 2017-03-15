@@ -1223,7 +1223,7 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 	}
 }
 
-static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
+static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
 	int    rc = -EINVAL;
     const char *gref_str;
     int gref, domid;
@@ -1283,7 +1283,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     sprintf(dir, "/xensocket/service/%s", x->service);
 
     xsbw.xbw.node = dir;
-    xsbw.xbw.callback = xen_watch_service;
+    xsbw.xbw.callback = xen_watch_accept;
     xsbw.gref = -1;
     // init as locked:
     sema_init(&(xsbw.sem), 0);
