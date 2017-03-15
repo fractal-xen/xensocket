@@ -64,6 +64,7 @@ static int xen_recvmsg (struct socket *sock, struct msghdr *m, size_t size, int 
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
 static int xen_listen (struct socket *sock, int backlog);
 
+static void xen_watch_service(struct xenbus_watch *xbw, const char **vec, unsigned int len);
 static int server_allocate_descriptor_page (struct xen_sock *x);
 static int server_allocate_event_channel (struct xen_sock *x);
 static int server_allocate_buffer_pages (struct xen_sock *x);
@@ -471,9 +472,28 @@ err:
  * Client-side connection setup functions.
  ************************************************************************/
 
+static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
+    struct xensocket_xenbus_watch *x = (struct xensocket_xenbus_watch*)xbw;
+    struct xenbus_transaction t;
+    int rc = -EINVAL;
+
+    TRACE_ENTRY;
+    if(len > 0) {
+        while(len--) {
+            DPRINTK("[%d] %s\n", len, vec[len]);
+        }
+        xenbus_transaction_start(&t);
+        rc = xenbus_exists(t, vec[0], "");
+        xenbus_transaction_end(&t);
+        if(!rc) {
+            // release sem:
+            up(&(x->sem));
+        }
+    }
+}
+
 static int
 xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags) {
-    /* bind code: */
 	int    rc = -EINVAL;
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
@@ -483,6 +503,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     char gref_str[15];
     int domid;
     int otherend_id;
+    struct xensocket_xenbus_watch xsbw;
 
 	TRACE_ENTRY;
     DPRINTK("sock@%p\n", sock);
@@ -529,6 +550,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     if(xenbus_exists(t, dir, gref_str)) {
         // already exists
         // TODO set rc?
+        xenbus_transaction_end(t, 0);
         goto err;
     }
     // write own domid to xenstore
@@ -538,12 +560,24 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     }
 	xenbus_transaction_end(t, 0);
 
+    // wait for accept:
+    strcat(dir, "/");
+    strcat(dir, gref_str);
+    xsbw.xbw.node = dir;
+    xsbw.xbw.callback = xen_watch_connect;
+    sema_init(&(xsbw.sem), 0);
+    register_xenbus_watch((struct xenbus_watch*)&xsbw);
+    if(down_interruptible(&(xsbw.sem))) {
+        DPRINTK("down_interruptible != 0\n");
+    }
+    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
+
+	TRACE_EXIT;
 	return x->descriptor_gref;
 
 err:
 	TRACE_ERROR;
 	return rc;
-    /* bind end! */
     
 }
 
