@@ -10,7 +10,7 @@
 #include "../xensocket.h"
 
 int main(int argc, char **argv) {
-    if (argc != 3)
+    if (argc != 2)
         printf("Usage: %s <service>\n", argv[0]);
 
     struct sockaddr_xe sxeaddr, remote_sxeaddr;
