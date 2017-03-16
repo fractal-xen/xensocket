@@ -491,11 +491,12 @@ static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsign
         if(!rc) {
             DPRINTK("%s was removed!\n", vec[0]);
             // unregister myself:
-            unregister_xenbus_watch(xbw);
+            //unregister_xenbus_watch(xbw);
             // release sem:
             up(&(x->sem));
         }
     }
+    TRACE_EXIT;
 }
 
 static int
@@ -573,10 +574,13 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     xsbw.xbw.callback = xen_watch_connect;
     sema_init(&(xsbw.sem), 0);
     register_xenbus_watch((struct xenbus_watch*)&xsbw);
+    DPRINTK("");
     if(down_interruptible(&(xsbw.sem))) {
         DPRINTK("connect got interrupted!\n");
         rc = -EINTR;
     }
+    DPRINTK("");
+    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
 
     sock->state = SS_CONNECTED;
 	TRACE_EXIT;
@@ -1294,7 +1298,7 @@ static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigne
                     x->gref = gref;
                     x->domid = domid;
                     // unregister myself:
-                    unregister_xenbus_watch(xbw);
+                    //unregister_xenbus_watch(xbw);
                     // release sem:
                     up(&(x->sem));
                 }
@@ -1327,6 +1331,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     register_xenbus_watch((struct xenbus_watch*)&xsbw);
 
     // wait for sem release:
+    DPRINTK("");
     if(down_interruptible(&(xsbw.sem))) {
         // e.g. interrupted
         rc = -EINTR;
@@ -1334,6 +1339,8 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
         unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
         goto err;
     }
+    DPRINTK("");
+    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
 
     DPRINTK("xsbw.gref = %d, xsbw.domid = %d\n", xsbw.gref, xsbw.domid);
 
