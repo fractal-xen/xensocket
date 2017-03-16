@@ -177,6 +177,8 @@ static struct proto xen_proto = {
 	.obj_size       = sizeof(struct xen_sock),
 };
 
+static int mydomid;
+
 static const struct proto_ops xen_stream_ops = {
 	.family         = AF_XEN,
 	.owner          = THIS_MODULE,
@@ -368,7 +370,7 @@ server_allocate_event_channel (struct xen_sock *x) {
 
 	TRACE_ENTRY;
 
-	op.dom = DOMID_SELF;
+	op.dom = mydomid;
 	op.remote_dom = x->otherend_id;
 	
 	printk(KERN_CRIT "own id: %d\n", op.dom);
@@ -1333,8 +1335,11 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 
     // wait for sem release:
     if(down_interruptible(&(xsbw.sem))) {
-        //failed
-        DPRINTK("down_interruptible != 0\n");
+        // e.g. interrupted
+        rc = -EINTR;
+        DPRINTK("accept got interrupted\n");
+        unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
+        goto err;
     }
 
     DPRINTK("xsbw.gref = %d, xsbw.domid = %d\n", xsbw.gref, xsbw.domid);
@@ -1377,6 +1382,7 @@ err_unmap_descriptor:
 	notify_remote_via_evtchn(new_x->evtchn_local_port);
 
 err:
+    TRACE_ERROR;
 	return rc;
 }
 
@@ -1415,7 +1421,6 @@ static int __init
 xensocket_init (void) {
 	int rc = -1;
 	struct xenbus_transaction t;
-    int domid;
 
 	TRACE_ENTRY;
 
@@ -1430,9 +1435,9 @@ xensocket_init (void) {
 	sock_register(&xen_family_ops);
 	printk(KERN_CRIT "pfxen: xen socket family registered\n");
 	xenbus_transaction_start(&t);
-    xenbus_scanf(t, "domid", "", "%d", &domid);
+    xenbus_scanf(t, "domid", "", "%d", &mydomid);
 	xenbus_transaction_end(t, 0);
-    printk(KERN_CRIT "pfxen: my domid = %d\n", domid);
+    printk(KERN_CRIT "pfxen: my domid = %d\n", mydomid);
 
     // this is just for testing xenbus watch!
     //register_xenbus_watch(&xbwg);

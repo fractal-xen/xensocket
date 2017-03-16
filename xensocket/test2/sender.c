@@ -38,6 +38,7 @@ int main(int argc, char **argv) {
 
     printf("accept = %d\n", newsock);
     if(newsock < 0) {
+        printf("error: %s\n", strerror(errno));
         return 1;
     }
 
