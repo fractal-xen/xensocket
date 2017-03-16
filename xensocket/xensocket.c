@@ -575,10 +575,13 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     sema_init(&(xsbw.sem), 0);
     register_xenbus_watch((struct xenbus_watch*)&xsbw);
     DPRINTK("");
+    down(&(xsbw.sem));
+    /*
     if(down_interruptible(&(xsbw.sem))) {
         DPRINTK("connect got interrupted!\n");
         rc = -EINTR;
     }
+    */
     DPRINTK("");
     unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
 
@@ -1321,6 +1324,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     DPRINTK("sock@%p\n", sock);
     DPRINTK("newsock@%p\n", newsock);
 
+    sprintf(dir, "/xensocket/service/%s", x->service);
     xsbw.xbw.node = dir;
     xsbw.xbw.callback = xen_watch_accept;
     xsbw.gref = -1;
@@ -1332,6 +1336,8 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 
     // wait for sem release:
     DPRINTK("");
+    down(&(xsbw.sem));
+    /*
     if(down_interruptible(&(xsbw.sem))) {
         // e.g. interrupted
         rc = -EINTR;
@@ -1339,6 +1345,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
         unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
         goto err;
     }
+    */
     DPRINTK("");
     unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
 
@@ -1351,7 +1358,6 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     new_x = xen_sk(new_sk);
 
     strcpy(new_x->service, x->service);
-    sprintf(dir, "/xensocket/service/%s", new_x->service);
 
     new_x->descriptor_gref = xsbw.gref;
     new_x->otherend_id = xsbw.domid;
