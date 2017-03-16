@@ -512,7 +512,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     struct xensocket_xenbus_watch xsbw;
 
 	TRACE_ENTRY;
-    DPRINTK("sock@%p\n", sock);
+    DPRINTK("sock@%p, service = %s\n", sock, sxeaddr->service);
 
 	if (sxeaddr->sxe_family != AF_XEN) {
 		goto err;
@@ -574,11 +574,13 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     sema_init(&(xsbw.sem), 0);
     register_xenbus_watch((struct xenbus_watch*)&xsbw);
     if(down_interruptible(&(xsbw.sem))) {
-        DPRINTK("down_interruptible != 0\n");
+        DPRINTK("connect got interrupted!\n");
+        rc = -EINTR;
     }
 
+    sock->state = SS_CONNECTED;
 	TRACE_EXIT;
-	return x->descriptor_gref;
+	return 0;
 
 err:
 	TRACE_ERROR;
@@ -1315,15 +1317,6 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     DPRINTK("sock@%p\n", sock);
     DPRINTK("newsock@%p\n", newsock);
 
-    // create child sk for newsock:
-    xen_create(sock_net(sk), newsock, -1, 0);
-    
-    new_sk = newsock->sk;
-    new_x = xen_sk(new_sk);
-
-    strcpy(new_x->service, x->service);
-    sprintf(dir, "/xensocket/service/%s", new_x->service);
-
     xsbw.xbw.node = dir;
     xsbw.xbw.callback = xen_watch_accept;
     xsbw.gref = -1;
@@ -1343,6 +1336,15 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     }
 
     DPRINTK("xsbw.gref = %d, xsbw.domid = %d\n", xsbw.gref, xsbw.domid);
+
+    // create child sk for newsock:
+    xen_create(sock_net(sk), newsock, -1, 0);
+    
+    new_sk = newsock->sk;
+    new_x = xen_sk(new_sk);
+
+    strcpy(new_x->service, x->service);
+    sprintf(dir, "/xensocket/service/%s", new_x->service);
 
     new_x->descriptor_gref = xsbw.gref;
     new_x->otherend_id = xsbw.domid;
@@ -1370,6 +1372,8 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	if ((rc = client_map_buffer_pages(new_x)) != 0) {
 		goto err_unmap_buffer;
 	}
+
+    newsock->state = SS_CONNECTED;
 
 	TRACE_EXIT;
 	return 0;
