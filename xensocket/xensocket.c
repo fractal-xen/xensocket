@@ -1320,7 +1320,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     new_x = xen_sk(new_sk);
 
     strcpy(new_x->service, x->service);
-    sprintf(dir, "/xensocket/service/%s", x->service);
+    sprintf(dir, "/xensocket/service/%s", new_x->service);
 
     xsbw.xbw.node = dir;
     xsbw.xbw.callback = xen_watch_accept;
@@ -1370,11 +1370,11 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 	return 0;
 
 err_unmap_buffer:
-	client_unmap_buffer_pages(x);
+	client_unmap_buffer_pages(new_x);
 
 err_unmap_descriptor:
-	client_unmap_descriptor_page(x);
-	notify_remote_via_evtchn(x->evtchn_local_port);
+	client_unmap_descriptor_page(new_x);
+	notify_remote_via_evtchn(new_x->evtchn_local_port);
 
 err:
 	return rc;

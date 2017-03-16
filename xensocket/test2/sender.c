@@ -36,7 +36,10 @@ int main(int argc, char **argv) {
     unsigned int addr_len = sizeof(remote_sxeaddr);
     int newsock = accept(sock, (struct sockaddr*) &remote_sxeaddr, &addr_len);
 
-    printf("connected\n");
+    printf("accept = %d\n", newsock);
+    if(newsock < 0) {
+        return 1;
+    }
 
     char input[4096];
 
