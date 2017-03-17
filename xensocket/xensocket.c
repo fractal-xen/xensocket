@@ -62,6 +62,7 @@ static int xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_le
 static int xen_sendmsg (struct socket *sock, struct msghdr *m, size_t len);
 static int xen_recvmsg (struct socket *sock, struct msghdr *m, size_t size, int flags);
 static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
+static int xen_getname(struct socket *sock, struct sockaddr *addr, int *sockaddr_len, int peer);
 static int xen_listen (struct socket *sock, int backlog);
 
 static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigned int len);
@@ -166,6 +167,7 @@ initialize_xen_sock (struct xen_sock *x) {
 struct xensocket_xenbus_watch {
     struct xenbus_watch xbw;
     struct semaphore sem;
+    struct xenbus_transaction xbt;
     unsigned int path_len;
     int gref;
     domid_t domid;
@@ -187,7 +189,7 @@ static const struct proto_ops xen_stream_ops = {
 	.connect        = xen_connect,
 	.socketpair     = sock_no_socketpair,
 	.accept         = xen_accept,
-	.getname        = sock_no_getname,
+	.getname        = xen_getname,
 	.poll           = sock_no_poll,
 	.ioctl          = sock_no_ioctl,
 	.listen         = xen_listen,
@@ -477,7 +479,6 @@ err:
 
 static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
     struct xensocket_xenbus_watch *x = (struct xensocket_xenbus_watch*)xbw;
-    struct xenbus_transaction t;
     int rc = -EINVAL;
 
     TRACE_ENTRY;
@@ -485,13 +486,13 @@ static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsign
         while(len--) {
             DPRINTK("[%d] %s\n", len, vec[len]);
         }
-        xenbus_transaction_start(&t);
-        rc = xenbus_exists(t, vec[0], "");
-        xenbus_transaction_end(t, 0);
+        xenbus_transaction_start(&(x->xbt));
+        rc = xenbus_exists(x->xbt, vec[0], "");
+        xenbus_transaction_end(x->xbt, 0);
         if(!rc) {
             DPRINTK("%s was removed!\n", vec[0]);
             // unregister myself:
-            //unregister_xenbus_watch(xbw);
+            unregister_xenbus_watch(xbw);
             // release sem:
             up(&(x->sem));
         }
@@ -532,7 +533,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
 	}
 	x->is_client = 1;
 
-	xenbus_transaction_start(&t);
+	xenbus_transaction_start(&(xsbw.xbt));
     // read remote domid from xenstore
     if((rc = xenbus_scanf(t, "/xensocket/service", sxeaddr->service, "%d", &otherend_id)) < 0) {
         goto err;
@@ -575,15 +576,13 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     sema_init(&(xsbw.sem), 0);
     register_xenbus_watch((struct xenbus_watch*)&xsbw);
     DPRINTK("");
-    down(&(xsbw.sem));
-    /*
+    //down(&(xsbw.sem));
     if(down_interruptible(&(xsbw.sem))) {
         DPRINTK("connect got interrupted!\n");
         rc = -EINTR;
+        unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
     }
-    */
     DPRINTK("");
-    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
 
     sock->state = SS_CONNECTED;
 	TRACE_EXIT;
@@ -1276,7 +1275,6 @@ static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigne
     const char *gref_str;
     int gref, domid;
     struct xensocket_xenbus_watch *x = (struct xensocket_xenbus_watch*) xbw;
-	struct xenbus_transaction t;
 
     TRACE_ENTRY;
     DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, vec, len);
@@ -1292,18 +1290,20 @@ static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigne
             x->gref = -2; // dbg
             gref_str = vec[0] + x->path_len + 1;
             if(sscanf(gref_str, "%d", &gref) > 0) {
-                xenbus_transaction_start(&t);
-                rc = xenbus_scanf(t, xbw->node, gref_str, "%d", &domid);
-                xenbus_rm(t, xbw->node, gref_str);
-                xenbus_transaction_end(t, 0);
+                xenbus_transaction_start(&(x->xbt));
+                rc = xenbus_scanf(x->xbt, xbw->node, gref_str, "%d", &domid);
                 if(rc > 0) {
                     // success
                     x->gref = gref;
                     x->domid = domid;
                     // unregister myself:
-                    //unregister_xenbus_watch(xbw);
+                    unregister_xenbus_watch(xbw);
+                    xenbus_rm(x->xbt, xbw->node, gref_str);
+                    xenbus_transaction_end(x->xbt, 0);
                     // release sem:
                     up(&(x->sem));
+                } else {
+                    xenbus_transaction_end(x->xbt, 0);
                 }
             }
         }
@@ -1319,6 +1319,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     struct xen_sock *new_x;
 	char   dir[256];
     struct xensocket_xenbus_watch xsbw;
+	//struct xenbus_transaction t;
 
 	TRACE_ENTRY;
     DPRINTK("sock@%p\n", sock);
@@ -1328,6 +1329,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     xsbw.xbw.node = dir;
     xsbw.xbw.callback = xen_watch_accept;
     xsbw.gref = -1;
+
     // init as locked:
     sema_init(&(xsbw.sem), 0);
 
@@ -1336,8 +1338,7 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
 
     // wait for sem release:
     DPRINTK("");
-    down(&(xsbw.sem));
-    /*
+    //down(&(xsbw.sem));
     if(down_interruptible(&(xsbw.sem))) {
         // e.g. interrupted
         rc = -EINTR;
@@ -1345,9 +1346,8 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
         unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
         goto err;
     }
-    */
     DPRINTK("");
-    unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
+    //unregister_xenbus_watch((struct xenbus_watch*)&xsbw);
 
     DPRINTK("xsbw.gref = %d, xsbw.domid = %d\n", xsbw.gref, xsbw.domid);
 
@@ -1401,6 +1401,21 @@ err_unmap_descriptor:
 err:
     TRACE_ERROR;
 	return rc;
+}
+
+// accept requires this implementation
+static int xen_getname(struct socket *sock, struct sockaddr *addr, int *sockaddr_len, int peer) {
+	struct sock *sk = sock->sk;
+	struct xen_sock *x = xen_sk(sk);
+    struct sockaddr_xe *sxeaddr = (struct sockaddr_xe*) addr;
+
+    TRACE_ENTRY;
+    DPRINTK("peer = %d\n", peer);
+    sxeaddr->sxe_family = AF_XEN;
+    strcpy(sxeaddr->service, x->service);
+    *sockaddr_len = sizeof(struct sockaddr_xe);
+    TRACE_EXIT;
+    return 0;
 }
 
 static int xen_listen (struct socket *sock, int backlog) {
