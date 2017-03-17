@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "../xensocket.h"
 
@@ -51,7 +52,7 @@ int main(int argc, char **argv) {
         input[counter] = '\0';
 	// convert input to string
 	int count = strtol(input, &ptr, 10);
-	printf("sending %d bytes", count);
+	printf("sending %d bytes\n", count);
 
 	char *buffer = malloc(count + 2);
 
@@ -65,11 +66,12 @@ int main(int argc, char **argv) {
 
 	// send data
 	int sent = 0;
+	int start = clock();
 	while(sent < count + 1) {
 		sent = sent + send(sock, buffer + sent, count - sent + 1, 0);
 	}
-
-	printf("bytes sent");
+	int end = clock();
+	printf("bytes sent: %d millis\n", (end - start));
 
 	free(buffer);
     }
