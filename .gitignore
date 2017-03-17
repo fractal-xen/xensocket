@@ -11,3 +11,5 @@ Module.symvers
 /xensocket/test/receiver
 /xensocket/test2/sender
 /xensocket/test2/receiver
+/xensocket/test3/sender
+/xensocket/test3/receiver
