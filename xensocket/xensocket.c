@@ -575,7 +575,7 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     xsbw.xbw.callback = xen_watch_connect;
     sema_init(&(xsbw.sem), 0);
     register_xenbus_watch((struct xenbus_watch*)&xsbw);
-    DPRINTK("");
+    DPRINTK("registered watch on %s\n", xsbw.xbw.node);
     //down(&(xsbw.sem));
     if(down_interruptible(&(xsbw.sem))) {
         DPRINTK("connect got interrupted!\n");
