@@ -38,7 +38,7 @@
 
 #define DPRINTK( x, args... ) printk(KERN_CRIT "%s: line %d: " x, __FUNCTION__ , (int)__LINE__ , ## args ); 
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 #define TRACE_ENTRY printk(KERN_CRIT "Entering %s\n", __func__)
 #define TRACE_EXIT  printk(KERN_CRIT "Exiting %s\n", __func__)
@@ -292,8 +292,6 @@ xen_bind (struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 
 	TRACE_ENTRY;
     DPRINTK("sock@%p\n", sock);
-
-    // TODO: set socket states
 
 	if (sxeaddr->sxe_family != AF_XEN) {
 		goto err;
@@ -557,7 +555,6 @@ xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flag
     sprintf(gref_str, "%d", x->descriptor_gref);
     if(xenbus_exists(t, dir, gref_str)) {
         // already exists
-        // TODO set rc?
         xenbus_transaction_end(t, 0);
         goto err;
     }
@@ -938,7 +935,6 @@ client_interrupt (int irq, void *dev_id) {
 
 static int
 xen_recvmsg (struct socket *sock, struct msghdr *msg, size_t size, int flags) {
-    // TODO check socket status!
 	int                     rc = -EINVAL;
 	struct sock            *sk = sock->sk;
 	struct xen_sock        *x = xen_sk(sk);
@@ -1362,25 +1358,19 @@ static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
     new_x->descriptor_gref = xsbw.gref;
     new_x->otherend_id = xsbw.domid;
 
-    // not needed
-    //xenbus_scanf(t, "domid", "", "%d", &domid);
-
 	if (new_x->descriptor_gref < 0) {
 		printk(KERN_CRIT "Gref could not be read!");
 		goto err;
 	}
 
-    //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping descriptor page...");
 	if ((rc = client_map_descriptor_page(new_x)) != 0) {
 		goto err;
 	}
-    //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping event channel...");
 	if ((rc = client_bind_event_channel(new_x)) != 0) {
 		goto err_unmap_descriptor;
 	}
-    //DPRINTK("");
 	printk(KERN_CRIT "pfxen: mapping buffer pages...");
 	if ((rc = client_map_buffer_pages(new_x)) != 0) {
 		goto err_unmap_buffer;
@@ -1419,7 +1409,6 @@ static int xen_getname(struct socket *sock, struct sockaddr *addr, int *sockaddr
 }
 
 static int xen_listen (struct socket *sock, int backlog) {
-    // TODO: check socket state
     int domid;
     struct xenbus_transaction t;
 	struct sock *sk = sock->sk;
