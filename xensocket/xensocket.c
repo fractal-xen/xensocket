@@ -18,6 +18,11 @@
 #include <linux/kernel.h>
 #include <linux/vmalloc.h>
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h>
+#endif
+
 #include <net/compat.h>
 #include <net/sock.h>
 #include <net/tcp_states.h>
@@ -61,12 +66,12 @@ static int xen_shutdown (struct socket *sock, int how);
 static int xen_connect (struct socket *sock, struct sockaddr *uaddr, int addr_len, int flags);
 static int xen_sendmsg (struct socket *sock, struct msghdr *m, size_t len);
 static int xen_recvmsg (struct socket *sock, struct msghdr *m, size_t size, int flags);
-static int xen_accept (struct socket *sock, struct socket *newsock, int flags);
+static int xen_accept(struct socket *sock, struct socket *newsock, int flags, bool kern);
 static int xen_getname(struct socket *sock, struct sockaddr *addr, int *sockaddr_len, int peer);
 static int xen_listen (struct socket *sock, int backlog);
 
-static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigned int len);
-static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsigned int len);
+static void xen_watch_accept(struct xenbus_watch *xbw, const char *path, const char *token);
+static void xen_watch_connect(struct xenbus_watch *xbw, const char *path, const char *token);
 static int server_allocate_descriptor_page (struct xen_sock *x);
 static int server_allocate_event_channel (struct xen_sock *x);
 static int server_allocate_buffer_pages (struct xen_sock *x);
@@ -475,20 +480,33 @@ err:
  * Client-side connection setup functions.
  ************************************************************************/
 
-static void xen_watch_connect(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
+static void
+xen_watch_connect(struct xenbus_watch *xbw, const char *path, const char *token)
+{
+		// struct watch_adapter *adap;
+		// const char *token_caller;
+		int path_len; //, tok_len, body_len;
+
     struct xensocket_xenbus_watch *x = (struct xensocket_xenbus_watch*)xbw;
     int rc = -EINVAL;
 
+		// adap = container_of(xbw, struct watch_adapter, xbw);
+
+		// token_caller = adap->token;
+
+		path_len = strlen(path) + 1;
+		// tok_len = strlen(token_caller) + 1;
+		// body_len = path_len + tok_len;
+
     TRACE_ENTRY;
-    if(len > 0) {
-        while(len--) {
-            DPRINTK("[%d] %s\n", len, vec[len]);
-        }
+    if(path_len > 0) {
+				DPRINTK("[%d] %s\n", path_len, path);
+						
         xenbus_transaction_start(&(x->xbt));
-        rc = xenbus_exists(x->xbt, vec[0], "");
+        rc = xenbus_exists(x->xbt, path, "");
         xenbus_transaction_end(x->xbt, 0);
         if(!rc) {
-            DPRINTK("%s was removed!\n", vec[0]);
+            DPRINTK("%s was removed!\n", path);
             // unregister myself:
             unregister_xenbus_watch(xbw);
             // release sem:
@@ -1266,25 +1284,27 @@ client_unmap_descriptor_page (struct xen_sock *x) {
 	}
 }
 
-static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigned int len) {
-	int    rc = -EINVAL;
+static void xen_watch_accept(struct xenbus_watch *xbw, const char *path, const char *token) {
+		int rc = -EINVAL;
     const char *gref_str;
     int gref, domid;
     struct xensocket_xenbus_watch *x = (struct xensocket_xenbus_watch*) xbw;
 
-    TRACE_ENTRY;
-    DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, vec, len);
+		int path_len = strlen(path) + 1;
 
-    if(len > 0) {
+    TRACE_ENTRY;
+    DPRINTK("xen_watch_service(%p, %p, %d)\n", xbw, path, path_len);
+
+    if(path_len > 0) {
         /* check if
          * 1) node is a prefix of the path and
          * 2) if "path" is longer than "node/"
          */
         x->path_len = strlen(xbw->node);
-        DPRINTK("path = %s\n", vec[0]);
-        if(strncmp(vec[0], xbw->node, x->path_len) == 0 && (strlen(vec[0]) - x->path_len > 1)) {
+        DPRINTK("path = %s\n", path);
+        if(strncmp(path, xbw->node, x->path_len) == 0 && (strlen(path) - x->path_len > 1)) {
             x->gref = -2; // dbg
-            gref_str = vec[0] + x->path_len + 1;
+            gref_str = path + x->path_len + 1;
             if(sscanf(gref_str, "%d", &gref) > 0) {
                 xenbus_transaction_start(&(x->xbt));
                 rc = xenbus_scanf(x->xbt, xbw->node, gref_str, "%d", &domid);
@@ -1307,7 +1327,9 @@ static void xen_watch_accept(struct xenbus_watch *xbw, const char **vec, unsigne
     TRACE_EXIT;
 }
 
-static int xen_accept (struct socket *sock, struct socket *newsock, int flags) {
+static int
+xen_accept(struct socket *sock, struct socket *newsock, int flags, bool kern)
+{
 	int    rc = -EINVAL;
 	struct sock *sk = sock->sk;
 	struct xen_sock *x = xen_sk(sk);
